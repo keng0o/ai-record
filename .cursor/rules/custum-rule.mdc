@@ -1,0 +1,32 @@
+---
+description: 
+globs: 
+---
+
+# Your rule content
+
+Project Stack:
+- Next.js 14+ with App Router
+- TypeScript 5+
+- React 18+
+- React Server Components by default
+- No client state management
+- radix-ui
+- Next.js 14+ App Router only
+- Tailwind v3.3.0 for styling
+- Vercel for deployment
+- Firestore for backend services
+- stripe
+- Skip /server/copainter/*
+
+Coding Guidelines:
+- Write clean, functional TypeScript code
+- Use React hooks and functional components
+- Implement proper error handling and testing
+- Optimize for performance using Next.js features
+
+Vercel and Firebase Integration:
+- Use Vercel Analytics and Edge Functions
+- Implement Firebase Auth and Row Level Security
+
+Always consider best practices for security, accessibility, and internationalization.

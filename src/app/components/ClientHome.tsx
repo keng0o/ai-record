@@ -21,19 +21,32 @@ interface Chat {
 export default function ClientHome() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
 
-  // 初回ロード時に localStorage からチャット履歴を読み込み
+  // 初回ロード時に localStorage からチャット履歴とアクティブチャットIDを読み込み
   useEffect(() => {
-    const stored = localStorage.getItem("chats");
-    if (stored) {
-      setChats(JSON.parse(stored));
+    const storedChats = localStorage.getItem("chats");
+    const storedActiveChatId = localStorage.getItem("activeChatId");
+
+    if (storedChats) {
+      setChats(JSON.parse(storedChats));
+    }
+    if (storedActiveChatId) {
+      setActiveChatId(storedActiveChatId);
     }
   }, []);
 
   // chats が更新されるたび localStorage に保存
   useEffect(() => {
-    // localStorage.setItem("chats", JSON.stringify(chats));
+    localStorage.setItem("chats", JSON.stringify(chats));
   }, [chats]);
+
+  // activeChatId が更新されるたび localStorage に保存
+  useEffect(() => {
+    if (activeChatId) {
+      localStorage.setItem("activeChatId", activeChatId);
+    }
+  }, [activeChatId]);
 
   // 新しいチャットを作成
   const handleNewChat = () => {
@@ -45,6 +58,7 @@ export default function ClientHome() {
     };
     setChats([...chats, newChat]);
     setActiveChatId(newChat.id);
+    setIsCapturing(true);
   };
 
   // アクティブチャットを取得
@@ -76,13 +90,30 @@ export default function ClientHome() {
 
   // 停止ボタンを押したときの処理 (例: API呼び出しでまとめて解析)
   const handleStopAndProcess = async () => {
-    // 必要があれば、撮りためたスクリーンショットをAPI経由でAIに送る
+    if (!activeChatId) return;
+
     try {
-      await fetch("/api/uploadImage", {
+      const images = activeChat?.screenshots || [];
+      const res = await fetch("/api/uploadImage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ images: chats.map((c) => c.screenshots) }),
+        body: JSON.stringify({
+          images,
+          chatId: activeChatId,
+        }),
       });
+
+      const data = await res.json();
+
+      if (data.success && data.analysis) {
+        // AIの分析結果をメッセージとして追加
+        const aiMsg: Message = {
+          role: "ai",
+          content: data.analysis,
+          timestamp: new Date().toISOString(),
+        };
+        handleAddMessage(activeChatId, aiMsg);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -101,7 +132,10 @@ export default function ClientHome() {
         <ChatSidebar
           chats={chats}
           activeChatId={activeChatId}
-          setActiveChatId={setActiveChatId}
+          setActiveChatId={(id) => {
+            setActiveChatId(id);
+            setIsCapturing(false);
+          }}
         />
       </div>
 
@@ -113,6 +147,7 @@ export default function ClientHome() {
             chatId={activeChatId}
             onSaveScreenshot={handleSaveScreenshot}
             onStopAndProcess={handleStopAndProcess}
+            autoStart={isCapturing}
           />
         )}
         {/* チャットウィンドウ */}

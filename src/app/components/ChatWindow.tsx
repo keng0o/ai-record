@@ -21,6 +21,7 @@ interface ChatWindowProps {
 
 export default function ChatWindow({ chat, onAddMessage }: ChatWindowProps) {
   const [userInput, setUserInput] = useState("");
+  const [chatHistory, setChatHistory] = useState<any[]>([]);
 
   const handleSend = async () => {
     if (!userInput.trim()) return;
@@ -52,6 +53,11 @@ export default function ChatWindow({ chat, onAddMessage }: ChatWindowProps) {
         timestamp: new Date().toISOString(),
       };
       onAddMessage(chat.id, aiMsg);
+
+      // 4. チャット履歴を更新
+      if (data.history) {
+        setChatHistory(data.history);
+      }
     } catch (error) {
       console.error("Error in askQuestion:", error);
     }
@@ -75,6 +81,7 @@ export default function ChatWindow({ chat, onAddMessage }: ChatWindowProps) {
 
       {/* メッセージ表示 */}
       <div className="flex-1 overflow-auto mb-4 border p-2">
+        {/* ローカルのメッセージ履歴 */}
         {chat.messages.map((msg, i) => (
           <div key={i} className="mb-2">
             <div
@@ -85,6 +92,14 @@ export default function ChatWindow({ chat, onAddMessage }: ChatWindowProps) {
               {msg.role === "user" ? "You" : "AI"}
             </div>
             <div>{msg.content}</div>
+          </div>
+        ))}
+
+        {/* Vertex AIのチャット履歴 */}
+        {chatHistory.map((msg, i) => (
+          <div key={`history-${i}`} className="mb-2 text-gray-600">
+            <div>{msg.role === "user" ? "You" : "AI"} (履歴)</div>
+            <div>{msg.parts[0].text}</div>
           </div>
         ))}
       </div>

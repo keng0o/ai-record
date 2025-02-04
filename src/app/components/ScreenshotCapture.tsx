@@ -6,12 +6,14 @@ interface ScreenshotCaptureProps {
   chatId: string;
   onSaveScreenshot: (chatId: string, dataUrl: string) => void;
   onStopAndProcess: () => void;
+  autoStart?: boolean;
 }
 
 export default function ScreenshotCapture({
   chatId,
   onSaveScreenshot,
   onStopAndProcess,
+  autoStart = false,
 }: ScreenshotCaptureProps) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -29,6 +31,13 @@ export default function ScreenshotCapture({
       stopCapture();
     };
   }, []);
+
+  // autoStartプロパティが変更されたときに自動的にキャプチャを開始
+  useEffect(() => {
+    if (autoStart && !isCapturing) {
+      startCapture();
+    }
+  }, [autoStart]);
 
   const startCapture = async () => {
     if (isCapturing) return;
@@ -93,57 +102,51 @@ export default function ScreenshotCapture({
     onSaveScreenshot(chatId, dataUrl);
   };
 
-  // 停止ボタンを押したときの処理 (例: API呼び出しでまとめて解析)
-  const onClickStopButton = async () => {
-    stopCapture();
-    onStopAndProcess();
-  };
-
   return (
-    <div className="p-2 border-b flex items-center space-x-2">
-      {/* このvideo要素は画面表示には隠していますが、キャプチャ用として裏で利用 */}
-      <video ref={videoRef} autoPlay style={{ display: "none" }} />
-      <label>間隔(秒): </label>
-      <input
-        type="number"
-        value={intervalSec}
-        onChange={(e) => setIntervalSec(Number(e.target.value))}
-        className="w-20 border px-2"
-        min={1}
-      />
-
-      {!isCapturing && (
+    <div className="p-4 border-b">
+      <div className="flex items-center space-x-4 mb-2">
         <button
-          className="bg-green-500 text-white px-3 py-1 rounded"
           onClick={startCapture}
+          disabled={isCapturing}
+          className={`px-4 py-2 rounded ${
+            isCapturing
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-blue-500 text-white"
+          }`}
         >
           開始
         </button>
-      )}
-      {isCapturing && !isPaused && (
-        <button
-          className="bg-yellow-500 text-white px-3 py-1 rounded"
-          onClick={pauseCapture}
-        >
-          一時停止
-        </button>
-      )}
-      {isCapturing && isPaused && (
-        <button
-          className="bg-blue-500 text-white px-3 py-1 rounded"
-          onClick={resumeCapture}
-        >
-          再開
-        </button>
-      )}
-      {isCapturing && (
-        <button
-          className="bg-red-500 text-white px-3 py-1 rounded"
-          onClick={onClickStopButton}
-        >
-          停止
-        </button>
-      )}
+        {isCapturing && (
+          <>
+            <button
+              onClick={() => setIsPaused(!isPaused)}
+              className="px-4 py-2 rounded bg-yellow-500 text-white"
+            >
+              {isPaused ? "再開" : "一時停止"}
+            </button>
+            <button
+              onClick={() => {
+                stopCapture();
+                onStopAndProcess();
+              }}
+              className="px-4 py-2 rounded bg-red-500 text-white"
+            >
+              停止
+            </button>
+          </>
+        )}
+        <div className="flex items-center">
+          <span className="mr-2">間隔:</span>
+          <input
+            type="number"
+            value={intervalSec}
+            onChange={(e) => setIntervalSec(Number(e.target.value))}
+            className="w-20 px-2 py-1 border rounded"
+            min="1"
+          />
+          <span className="ml-1">秒</span>
+        </div>
+      </div>
     </div>
   );
 }

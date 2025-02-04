@@ -3,7 +3,7 @@
 import { Chat, Message } from "@/types";
 import pixelmatch from "pixelmatch";
 import { useEffect, useRef, useState } from "react";
-import { uploadImage } from "../../../app/actions";
+import { uploadImage } from "../actions";
 import ChatSidebar from "./ChatSidebar";
 import ChatWindow from "./ChatWindow";
 
@@ -12,18 +12,85 @@ const CAPTURE_CONFIG = {
   MIN_DIFF_PERCENTAGE: 0.01,
 } as const;
 
+// localStorageのアクセスをクライアントサイドのみに制限するカスタムフック
+function useLocalStorage<T>(key: string, initialValue: T) {
+  // 初期値を設定する関数
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    if (typeof window === "undefined") {
+      return initialValue;
+    }
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error(error);
+      return initialValue;
+    }
+  });
+
+  // 値を保存する関数
+  const setValue = (value: T | ((val: T) => T)) => {
+    try {
+      const valueToStore =
+        value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return [storedValue, setValue] as const;
+}
+
 export default function ClientHome() {
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
-  const [chats, setChats] = useState<Chat[]>([]);
+  // localStorageの使用をカスタムフックに置き換え
+  const [chats, setChats] = useLocalStorage<Chat[]>("chats", []);
+  const [activeChatId, setActiveChatId] = useLocalStorage<string | null>(
+    "activeChatId",
+    null
+  );
   const [images, setImages] = useState<string[]>([]);
 
   const [isCapturing, setIsCapturing] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [previousImageData, setPreviousImageData] = useState<ImageData | null>(
     null
   );
+
+  // クライアントサイドでのマウント完了を検知
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // コンポーネントの初期化
+  useEffect(() => {
+    // ローカルストレージからデータを復元
+    const savedChats = localStorage.getItem("chats");
+    const savedActiveChatId = localStorage.getItem("activeChatId");
+
+    if (savedChats) {
+      setChats(JSON.parse(savedChats));
+    }
+    if (savedActiveChatId) {
+      setActiveChatId(savedActiveChatId);
+    }
+  }, []);
+
+  // 状態が変更されたときにローカルストレージに保存
+  useEffect(() => {
+    if (isClient) {
+      localStorage.setItem("chats", JSON.stringify(chats));
+      if (activeChatId) {
+        localStorage.setItem("activeChatId", activeChatId);
+      }
+    }
+  }, [chats, activeChatId, isClient]);
 
   // コンポーネントがアンマウントされるときに必ずキャプチャを停止
   useEffect(() => {
@@ -37,26 +104,24 @@ export default function ClientHome() {
     setIsCapturing(false);
     setIsPaused(false);
 
-    // MediaStream を停止
     if (videoRef.current?.srcObject instanceof MediaStream) {
       videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
       videoRef.current.srcObject = null;
     }
 
     try {
-      console.log({ images });
+      if (images.length > 0) {
+        const res = await uploadImage(images);
+        console.log("🚀 ~ stopCapture ~ res:", res);
 
-      const res = await uploadImage(images);
-      console.log("🚀 ~ stopCapture ~ res:", res);
-
-      // ストリーム取得が成功してからチャットを生成
-      const newChat: Chat = {
-        id: Date.now().toString(),
-        messages: [],
-        startAt: new Date().toISOString(),
-      };
-      setChats((prev) => [...prev, newChat]);
-      setActiveChatId(newChat.id);
+        const newChat: Chat = {
+          id: `chat-${Date.now()}`,
+          messages: [],
+          startAt: new Date().toISOString(),
+        };
+        setChats((prev) => [...prev, newChat]);
+        setActiveChatId(newChat.id);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -112,17 +177,15 @@ export default function ClientHome() {
   };
 
   const takeScreenshot = async () => {
-    console.log("🚀 ~ takeScreenshot ~ videoRef:", videoRef);
-    if (!videoRef.current) return;
+    if (!videoRef.current || !isCapturing) return;
 
     const video = videoRef.current;
-    console.log("🚀 ~ takeScreenshot ~ video:", video);
 
     // ビデオの準備ができているか確認
     if (video.readyState !== video.HAVE_ENOUGH_DATA) {
-      console.log("ビデオデータが準備できていません");
-      // 準備ができていなければ少し待って再度試行
-      setTimeout(() => takeScreenshot(), 1000);
+      if (isCapturing && !isPaused) {
+        setTimeout(() => takeScreenshot(), 1000);
+      }
       return;
     }
 
@@ -161,24 +224,16 @@ export default function ClientHome() {
       }
     }
   };
-  console.log("🚀 ~ takeScreenshot ~ videoRef:", videoRef);
-  console.log("🚀 ~ takeScreenshot ~ videoRef:", videoRef);
-  console.log("🚀 ~ takeScreenshot ~ videoRef:", videoRef);
 
   // 新しいチャットを作成しつつキャプチャ開始
   const handleNewChat = async () => {
-    // キャプチャ中なら何もしない
-    if (isCapturing) {
-      return;
-    }
+    if (isCapturing) return;
 
     try {
-      // ここで画面共有の許可を求める
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        // video: true など必要に応じて指定
+        video: true,
       });
 
-      // 新しいチャットを始めるタイミングで画像リストをリセット
       setImages([]);
       setPreviousImageData(null);
 
@@ -186,12 +241,20 @@ export default function ClientHome() {
         throw new Error("Video element not found");
       }
 
+      const newChat: Chat = {
+        id: `chat-${Date.now()}`,
+        messages: [],
+        startAt: new Date().toISOString(),
+      };
+
       videoRef.current.srcObject = stream;
-      videoRef.current.play(); // 念のため再生開始
+      await videoRef.current.play();
+
+      setChats((prev) => [...prev, newChat]);
+      setActiveChatId(newChat.id);
       setIsCapturing(true);
       setIsPaused(false);
 
-      // 1度目のスクリーンショット撮影開始
       takeScreenshot();
     } catch (err) {
       console.error("Error starting capture:", err);
@@ -214,9 +277,20 @@ export default function ClientHome() {
     );
   };
 
+  // レンダリング部分を条件付きで表示
+  if (!isClient) {
+    return (
+      <div className="flex h-full justify-center items-center">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full">
-      <video ref={videoRef} autoPlay style={{ display: "none" }} />
+      {isCapturing && (
+        <video ref={videoRef} autoPlay style={{ display: "none" }} muted />
+      )}
       {/* サイドバー */}
       <div className="w-64 bg-gray-200 p-4 space-y-2">
         {isCapturing ? (

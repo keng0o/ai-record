@@ -11,9 +11,11 @@ interface ScreenshotCaptureProps {
   onScreenshotTaken?: () => void;
 }
 
-// 差分の閾値（0-1の範囲、小さいほど厳密）
-const THRESHOLD = 0.1;
-const MIN_DIFF_PERCENTAGE = 0.01; // 最小差分比率（1%）
+// 定数を別ファイルに移動
+const CAPTURE_CONFIG = {
+  THRESHOLD: 0.1,
+  MIN_DIFF_PERCENTAGE: 0.01,
+} as const;
 
 export default function ScreenshotCapture({
   chatId,
@@ -45,29 +47,28 @@ export default function ScreenshotCapture({
 
   const startCapture = async () => {
     if (isCapturing) return;
+
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-      });
+      const stream = await navigator.mediaDevices.getDisplayMedia();
+
+      if (!videoRef.current) {
+        throw new Error("Video element not found");
+      }
+
       streamRef.current = stream;
+      videoRef.current.srcObject = stream;
       setIsCapturing(true);
       setIsPaused(false);
 
-      // ビデオタグにストリームを設定 (映像を取得)
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      console.log("🚀 ~ startCapture ~ videoRef:", videoRef);
-
-      // インターバルでスクリーンショットを撮る
       captureIntervalRef.current = setInterval(() => {
         if (!isPaused) {
-          // 一時停止中でない場合のみスクリーンショットを撮影
           takeScreenshot();
         }
       }, intervalSec * 1000);
     } catch (err) {
       console.error("Error starting capture:", err);
+      // ユーザーへのフィードバック
+      alert("画面キャプチャの開始に失敗しました");
     }
   };
 
@@ -125,7 +126,7 @@ export default function ScreenshotCapture({
       width,
       height,
       {
-        threshold: THRESHOLD,
+        threshold: CAPTURE_CONFIG.THRESHOLD,
         includeAA: true, // アンチエイリアスを含める
         alpha: 0.1, // アルファ値の重み
         diffColor: [255, 0, 0], // 差分を赤色で表示
@@ -137,9 +138,9 @@ export default function ScreenshotCapture({
 
     console.log(`差分ピクセル数: ${numDiffPixels}`);
     console.log(`総ピクセル数: ${totalPixels}`);
-    console.log(`差分比率: ${(diffPercentage * 100).toFixed(2)}%`);
 
-    const shouldSave = diffPercentage >= MIN_DIFF_PERCENTAGE;
+    const shouldSave = diffPercentage >= CAPTURE_CONFIG.MIN_DIFF_PERCENTAGE;
+
     console.log(
       shouldSave ? "差分が十分あるため保存します" : "差分が小さいため破棄します"
     );

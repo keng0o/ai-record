@@ -1,5 +1,6 @@
 "use client";
 
+import { loadFromStorage, saveToStorage } from "@/utils/storage";
 import { useEffect, useState } from "react";
 import ChatSidebar from "./ChatSidebar";
 import ChatWindow from "./ChatWindow";
@@ -18,35 +19,27 @@ interface Chat {
   messages: Message[];
 }
 
-export default function ClientHome() {
+// チャット操作をカスタムフックに分離
+const useChats = () => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
-  const [isCapturing, setIsCapturing] = useState(false);
 
-  // 初回ロード時に localStorage からチャット履歴とアクティブチャットIDを読み込み
   useEffect(() => {
-    const storedChats = localStorage.getItem("chats");
-    const storedActiveChatId = localStorage.getItem("activeChatId");
-
-    if (storedChats) {
-      setChats(JSON.parse(storedChats));
-    }
-    if (storedActiveChatId) {
-      setActiveChatId(storedActiveChatId);
-    }
+    const { storedChats, storedActiveChatId } = loadFromStorage();
+    if (storedChats) setChats(storedChats);
+    if (storedActiveChatId) setActiveChatId(storedActiveChatId);
   }, []);
 
-  // chats が更新されるたび localStorage に保存
   useEffect(() => {
-    // localStorage.setItem("chats", JSON.stringify(chats));
-  }, [chats]);
+    saveToStorage({ chats, activeChatId });
+  }, [chats, activeChatId]);
 
-  // activeChatId が更新されるたび localStorage に保存
-  useEffect(() => {
-    if (activeChatId) {
-      localStorage.setItem("activeChatId", activeChatId);
-    }
-  }, [activeChatId]);
+  return { chats, setChats, activeChatId, setActiveChatId };
+};
+
+export default function ClientHome() {
+  const { chats, setChats, activeChatId, setActiveChatId } = useChats();
+  const [isCapturing, setIsCapturing] = useState(false);
 
   // 新しいチャットを作成
   const handleNewChat = () => {

@@ -1,4 +1,5 @@
 // app/api/askQuestion/route.ts
+import { AppError, handleApiError } from "@/utils/error";
 import {
   Content,
   GenerateContentResult,
@@ -15,15 +16,39 @@ const vertexAI = new VertexAI({
   location: location,
 });
 
-// チャットセッションを保持するためのMap
-const chatSessions = new Map();
+// 環境変数のバリデーション
+const validateEnvVars = () => {
+  const requiredVars = ["GOOGLE_CLOUD_PROJECT_ID"] as const;
+  for (const varName of requiredVars) {
+    if (!process.env[varName]) {
+      throw new Error(`Missing required environment variable: ${varName}`);
+    }
+  }
+};
+
+// チャットセッション管理の改善
+const chatSessionManager = {
+  sessions: new Map(),
+
+  getOrCreateSession(chatId: string, generativeModel: any) {
+    if (!this.sessions.has(chatId)) {
+      this.sessions.set(chatId, generativeModel.startChat());
+    }
+    return this.sessions.get(chatId);
+  },
+};
 
 export async function POST(request: Request) {
   try {
-    const { chatId, question } = await request.json();
+    validateEnvVars(); // 環境変数のバリデーションを最初に実行
 
-    if (!projectId) {
-      throw new Error("GOOGLE_CLOUD_PROJECT_ID is not set");
+    const { chatId, question } = await request.json();
+    if (!chatId || !question) {
+      throw new AppError(
+        "必要なパラメータが不足しています",
+        "INVALID_PARAMS",
+        400
+      );
     }
 
     const generativeModel = vertexAI.preview.getGenerativeModel({
@@ -37,11 +62,7 @@ export async function POST(request: Request) {
     console.dir("🚀 ~ POST ~ generativeModel:", generativeModel);
 
     // 既存のチャットセッションを取得するか、新しいセッションを作成
-    let chat = chatSessions.get(chatId);
-    if (!chat) {
-      chat = generativeModel.startChat();
-      chatSessions.set(chatId, chat);
-    }
+    let chat = chatSessionManager.getOrCreateSession(chatId, generativeModel);
 
     // 既存のチャットセッションを使用してメッセージを送信
     const result = (await chat.sendMessage(question)) as GenerateContentResult;
@@ -55,21 +76,14 @@ export async function POST(request: Request) {
     console.dir("🚀 ~ POST ~ response:", JSON.stringify(response));
 
     return NextResponse.json({
+      success: true,
       answer: JSON.stringify(response),
       messageId: chatId,
       history: history,
     });
   } catch (error) {
-    console.error("Error in AI chat:", error);
-    let errorMessage = "AI処理中にエラーが発生しました";
-
-    if (error instanceof Error) {
-      errorMessage = `エラー: ${error.message}`;
-    }
-
-    return NextResponse.json(
-      { success: false, message: errorMessage },
-      { status: 500 }
-    );
+    return NextResponse.json(handleApiError(error), {
+      status: error instanceof AppError ? error.statusCode : 500,
+    });
   }
 }

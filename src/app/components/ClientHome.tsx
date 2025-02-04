@@ -38,7 +38,7 @@ export default function ClientHome() {
 
   // chats が更新されるたび localStorage に保存
   useEffect(() => {
-    localStorage.setItem("chats", JSON.stringify(chats));
+    // localStorage.setItem("chats", JSON.stringify(chats));
   }, [chats]);
 
   // activeChatId が更新されるたび localStorage に保存
@@ -58,7 +58,6 @@ export default function ClientHome() {
     };
     setChats([...chats, newChat]);
     setActiveChatId(newChat.id);
-    setIsCapturing(true);
   };
 
   // アクティブチャットを取得
@@ -132,10 +131,7 @@ export default function ClientHome() {
         <ChatSidebar
           chats={chats}
           activeChatId={activeChatId}
-          setActiveChatId={(id) => {
-            setActiveChatId(id);
-            setIsCapturing(false);
-          }}
+          setActiveChatId={setActiveChatId}
         />
       </div>
 
@@ -147,7 +143,6 @@ export default function ClientHome() {
             chatId={activeChatId}
             onSaveScreenshot={handleSaveScreenshot}
             onStopAndProcess={handleStopAndProcess}
-            autoStart={isCapturing}
           />
         )}
         {/* チャットウィンドウ */}

@@ -45,6 +45,7 @@ export default function ChatWindow({ chat, onAddMessage }: ChatWindowProps) {
         }),
       });
       const data = await res.json();
+      console.log("🚀 ~ handleSend ~ data:", data);
 
       // 3. AIメッセージを追加
       const aiMsg: Message = {

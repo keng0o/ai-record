@@ -6,14 +6,12 @@ interface ScreenshotCaptureProps {
   chatId: string;
   onSaveScreenshot: (chatId: string, dataUrl: string) => void;
   onStopAndProcess: () => void;
-  autoStart?: boolean;
 }
 
 export default function ScreenshotCapture({
   chatId,
   onSaveScreenshot,
   onStopAndProcess,
-  autoStart = false,
 }: ScreenshotCaptureProps) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -32,13 +30,6 @@ export default function ScreenshotCapture({
     };
   }, []);
 
-  // autoStartプロパティが変更されたときに自動的にキャプチャを開始
-  useEffect(() => {
-    if (autoStart && !isCapturing) {
-      startCapture();
-    }
-  }, [autoStart]);
-
   const startCapture = async () => {
     if (isCapturing) return;
     try {
@@ -53,16 +44,25 @@ export default function ScreenshotCapture({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
+      console.log("🚀 ~ startCapture ~ videoRef:", videoRef);
 
       // インターバルでスクリーンショットを撮る
       captureIntervalRef.current = setInterval(() => {
-        if (!isPaused) {
-          takeScreenshot();
-        }
+        console.log(
+          "🚀 ~aa captureIntervalRef.current=setInterval ~ isPaused:",
+          isPaused
+        );
+        takeScreenshot();
       }, intervalSec * 1000);
     } catch (err) {
       console.error("Error starting capture:", err);
     }
+  };
+
+  // 停止ボタンを押したときの処理 (例: API呼び出しでまとめて解析)
+  const onClickStopButton = async () => {
+    stopCapture();
+    onStopAndProcess();
   };
 
   const pauseCapture = () => {
@@ -88,6 +88,7 @@ export default function ScreenshotCapture({
 
   const takeScreenshot = () => {
     if (!videoRef.current) return;
+    console.log("🚀 ~ takeScreenshot ~ videoRef:", videoRef);
     const video = videoRef.current;
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
@@ -97,13 +98,25 @@ export default function ScreenshotCapture({
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL("image/png");
+    console.log("🚀 ~ takeScreenshot ~ dataUrl:", dataUrl);
 
     // 親コンポーネントへスクショを渡す
     onSaveScreenshot(chatId, dataUrl);
   };
 
   return (
-    <div className="p-4 border-b">
+    <div className="p-2 border-b flex items-center space-x-2">
+      {/* このvideo要素は画面表示には隠していますが、キャプチャ用として裏で利用 */}
+      <video ref={videoRef} autoPlay style={{ display: "none" }} />
+      <label>間隔(秒): </label>
+      <input
+        type="number"
+        value={intervalSec}
+        onChange={(e) => setIntervalSec(Number(e.target.value))}
+        className="w-20 border px-2"
+        min={1}
+      />
+
       <div className="flex items-center space-x-4 mb-2">
         <button
           onClick={startCapture}

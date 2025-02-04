@@ -33,8 +33,6 @@ export async function POST(request: Request) {
       chatSessions.set(chatId, chat);
     }
 
-    const prompt = "これらの画像を分析して、重要なポイントを説明してください。";
-
     const imageContents = images.map((base64Image: string) => ({
       inlineData: {
         data: base64Image.replace(/^data:image\/\w+;base64,/, ""),
@@ -45,10 +43,11 @@ export async function POST(request: Request) {
     // 既存のチャットセッションを使用してメッセージを送信
     const result = await chat.sendMessage({
       role: "user",
-      parts: [{ text: prompt }, ...imageContents],
+      parts: imageContents,
     });
 
     const response = await result.response;
+    console.log("🚀 ~ POST ~ response:", response);
 
     return NextResponse.json({
       success: true,

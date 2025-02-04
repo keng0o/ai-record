@@ -1,5 +1,6 @@
 "use client";
 
+import { Chat } from "@/types";
 import { useState } from "react";
 
 interface Message {
@@ -7,19 +8,18 @@ interface Message {
   content: string;
   timestamp: string;
 }
-interface Chat {
-  id: string;
-  title: string;
-  screenshots: string[];
-  messages: Message[];
-}
 
 interface ChatWindowProps {
   chat: Chat;
+  images: string[];
   onAddMessage: (chatId: string, msg: Message) => void;
 }
 
-export default function ChatWindow({ chat, onAddMessage }: ChatWindowProps) {
+export default function ChatWindow({
+  chat,
+  images,
+  onAddMessage,
+}: ChatWindowProps) {
   const [userInput, setUserInput] = useState("");
   const [chatHistory, setChatHistory] = useState<any[]>([]);
 
@@ -70,10 +70,10 @@ export default function ChatWindow({ chat, onAddMessage }: ChatWindowProps) {
     <div className="flex-1 flex flex-col p-4">
       {/* スクリーンショット一覧 (サムネ表示) */}
       <div className="flex overflow-x-auto mb-4 space-x-2">
-        {chat.screenshots.map((shot, i) => (
+        {images.map((image, i) => (
           <img
             key={i}
-            src={shot}
+            src={image}
             alt={`Screenshot-${i}`}
             className="w-24 h-24 object-cover border"
           />

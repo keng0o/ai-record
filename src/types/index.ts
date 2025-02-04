@@ -6,9 +6,9 @@ export interface Message {
 
 export interface Chat {
   id: string;
-  title: string;
-  screenshots: string[];
   messages: Message[];
+  startAt: string;
+  endAt?: string;
 }
 
 export interface ChatItem {

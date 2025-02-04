@@ -1,12 +1,9 @@
 "use client";
 
-interface ChatItem {
-  id: string;
-  title: string;
-}
+import { Chat } from "@/types";
 
 interface ChatSidebarProps {
-  chats: ChatItem[];
+  chats: Chat[];
   activeChatId: string | null;
   setActiveChatId: (id: string) => void;
 }
@@ -25,9 +22,7 @@ export default function ChatSidebar({
           className={`p-2 mb-2 cursor-pointer rounded ${
             chat.id === activeChatId ? "bg-blue-300" : "bg-white"
           }`}
-        >
-          {chat.title}
-        </div>
+        ></div>
       ))}
     </div>
   );

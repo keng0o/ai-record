@@ -1,64 +1,35 @@
 // app/api/uploadImage/route.ts
-import { VertexAI } from "@google-cloud/vertexai";
+import { writeFile } from "fs/promises";
 import { NextResponse } from "next/server";
-
-const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
-const location = "us-central1";
-const model = "gemini-pro-vision";
-
-const vertexAI = new VertexAI({
-  project: projectId,
-  location: location,
-});
-
-// チャットセッションを保持するためのMap
-const chatSessions = new Map();
+import path from "path";
 
 export async function POST(request: Request) {
   try {
-    const { images, chatId } = await request.json();
+    const data = await request.formData();
+    const file: File | null = data.get("file") as unknown as File;
 
-    const generativeModel = vertexAI.preview.getGenerativeModel({
-      model: model,
-      generationConfig: {
-        maxOutputTokens: 2048,
-        temperature: 0.4,
-      },
-    });
-
-    // 既存のチャットセッションを取得するか、新しいセッションを作成
-    let chat = chatSessions.get(chatId);
-    if (!chat) {
-      chat = generativeModel.startChat();
-      chatSessions.set(chatId, chat);
+    if (!file) {
+      return NextResponse.json({
+        success: false,
+        error: "画像が見つかりません",
+      });
     }
 
-    const imageContents = images.map((base64Image: string) => ({
-      inlineData: {
-        data: base64Image.replace(/^data:image\/\w+;base64,/, ""),
-        mimeType: "image/png",
-      },
-    }));
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
 
-    // 既存のチャットセッションを使用してメッセージを送信
-    const result = await chat.sendMessage({
-      role: "user",
-      parts: imageContents,
-    });
+    // 保存先のディレクトリを作成
+    const uploadDir = path.join(process.cwd(), "public", "uploads");
+    const imagePath = path.join(uploadDir, `${Date.now()}.png`);
 
-    const response = await result.response;
-    console.log("🚀 ~ POST ~ response:", response);
+    // 新しい画像を保存
+    await writeFile(imagePath, buffer);
 
-    return NextResponse.json({
-      success: true,
-      analysis: response.text(),
-      messageId: response.messageId,
-    });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error processing images:", error);
-    return NextResponse.json(
-      { success: false, message: "画像処理中にエラーが発生しました" },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: false,
+      error: "画像のアップロードに失敗しました",
+    });
   }
 }

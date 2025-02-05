@@ -4,7 +4,7 @@
 import { VertexAI } from "@google-cloud/vertexai";
 import { GenerateContentResult } from "@google-cloud/vertexai/build/src/types/content";
 const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
-const location = "us-central1";
+const location = "asia-northeast1";
 const model = "gemini-1.5-flash-001";
 const vertexAI = new VertexAI({
   project: projectId,
@@ -28,9 +28,10 @@ export async function uploadImage(images: string[]) {
         {
           role: "user",
           parts: images.map((image) => {
+            const base64Body = image.replace(/^data:image\/\w+;base64,/, "");
             return {
               inlineData: {
-                data: image,
+                data: base64Body,
                 mimeType: "image/png",
               },
             };

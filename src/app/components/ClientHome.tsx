@@ -1,30 +1,46 @@
 "use client";
 
 import { Chat, Message } from "@/types";
+import { storage } from "@/utils/clientApp";
+import { getDownloadURL } from "firebase/storage";
 import pixelmatch from "pixelmatch";
 import { useEffect, useRef, useState } from "react";
 import { uploadImage } from "../actions"; // "use server" な関数
 import ChatSidebar from "./ChatSidebar";
 import ChatWindow from "./ChatWindow";
 
+import { ref as storageRef, uploadBytes } from "firebase/storage";
+
 const CAPTURE_CONFIG = {
   THRESHOLD: 0.1,
   MIN_DIFF_PERCENTAGE: 0.01,
 } as const;
 
+const delay = (milliseconds: number) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
 export default function ClientHome() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   // グローバルに画像を持っているが、本来はチャットごとに紐付けるのが望ましい
   const [images, setImages] = useState<string[]>([]);
 
+  // --------------------------------------------------------------------------
   // キャプチャ関連
+  // --------------------------------------------------------------------------
   const [isCapturing, setIsCapturing] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+
+  // ★ setTimeout のタイマーIDを保持するための useRef
+  const captureTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Video / Canvas
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [previousImageData, setPreviousImageData] = useState<ImageData | null>(
-    null
-  );
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // 前フレームの ImageData
+  const previousImageDataRef = useRef<ImageData | null>(null);
 
   // --------------------------------------------------------------------------
   // ローカルストレージから読み込み
@@ -41,29 +57,157 @@ export default function ClientHome() {
   }, []);
 
   // --------------------------------------------------------------------------
-  // ローカルストレージへの保存
-  // --------------------------------------------------------------------------
-  useEffect(() => {
-    localStorage.setItem("chats", JSON.stringify(chats));
-    if (activeChatId) {
-      localStorage.setItem("activeChatId", activeChatId);
-    }
-  }, [chats, activeChatId]);
-
-  // --------------------------------------------------------------------------
-  // アンマウント時のクリーンアップ: キャプチャ停止
+  // アンマウント時のクリーンアップ: キャプチャ停止 + clearTimeout
   // --------------------------------------------------------------------------
   useEffect(() => {
     return () => {
-      stopCapture(); // アンマウント時にはアップロードしないように例示 (必要に応じてtrueに)
+      stopCapture();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --------------------------------------------------------------------------
-  // キャプチャ停止 (オプションで画像アップロード)
+  // フレームを Firebase へアップロード
+  // --------------------------------------------------------------------------
+  const uploadFrameToFirebase = async (canvas: HTMLCanvasElement) => {
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const timestamp = new Date().getTime();
+      // 例: frames/frame_{timestamp}.png というパスに保存
+      const imageRef = storageRef(storage, `frames/frame_${timestamp}.png`);
+
+      try {
+        // BlobをFirebase Storageにアップロード
+        await uploadBytes(imageRef, blob);
+        // アップロード後のダウンロードURLを取得して表示
+        const url = await getDownloadURL(imageRef);
+        console.log("Uploaded!", url);
+        setUploadedUrls((prev) => [...prev, url]);
+      } catch (error) {
+        console.error("Upload failed", error);
+      }
+    }, "image/png");
+  };
+
+  // --------------------------------------------------------------------------
+  // 差分判定
+  // --------------------------------------------------------------------------
+  const hasSignificantDiff = (
+    oldData: ImageData | null,
+    newData: ImageData
+  ): boolean => {
+    // 前フレームがない場合（初回）は必ず true
+    if (!oldData) return true;
+
+    // 解像度が変わったら強制的に true
+    if (oldData.width !== newData.width || oldData.height !== newData.height) {
+      return true;
+    }
+
+    const { width, height } = newData;
+    const diffOutput = new Uint8Array(width * height * 4);
+
+    const numDiffPixels = pixelmatch(
+      oldData.data,
+      newData.data,
+      diffOutput,
+      width,
+      height,
+      {
+        threshold: CAPTURE_CONFIG.THRESHOLD,
+        includeAA: true,
+        alpha: 0.1,
+        diffColor: [255, 0, 0],
+      }
+    );
+    const totalPixels = width * height;
+    const diffRatio = numDiffPixels / totalPixels;
+    return diffRatio >= CAPTURE_CONFIG.MIN_DIFF_PERCENTAGE;
+  };
+
+  // --------------------------------------------------------------------------
+  // スクリーンショットを再帰的に撮り続ける
+  // --------------------------------------------------------------------------
+  const takeScreenshot = async () => {
+    console.log("Taking screenshot... isPaused:", isPaused);
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // 映像がまだ取得できていない (幅や高さが 0) 場合はリトライ
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.log("Video not ready, retrying in 1s...");
+    } else {
+      // Canvas サイズ調整 + 描画
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // 新しい ImageData を取得して差分判定
+      const newImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      if (hasSignificantDiff(previousImageDataRef.current, newImageData)) {
+        console.log("Saving image...");
+        uploadFrameToFirebase(canvas);
+      } else {
+        console.log("No significant difference, skipping capture");
+      }
+      previousImageDataRef.current = newImageData;
+    }
+
+    await delay(10000);
+    await takeScreenshot();
+  };
+
+  // --------------------------------------------------------------------------
+  // キャプチャ開始
+  // --------------------------------------------------------------------------
+  const startCapture = async () => {
+    if (isCapturing || isPaused) return; // すでにキャプチャ中なら何もしない
+
+    try {
+      console.log("Requesting display media...");
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true, // 明示的にvideoを指定
+      });
+
+      // キャプチャ開始前に画像リスト・差分状態をリセット
+      setImages([]);
+      previousImageDataRef.current = null;
+
+      // Video要素にストリームをセットし、再生
+      if (!videoRef.current) {
+        throw new Error("Video element not found");
+      }
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+
+      console.log("Display media stream started:", stream);
+
+      setIsCapturing(true);
+      setIsPaused(false);
+
+      // スクリーンショット開始
+      await takeScreenshot();
+    } catch (err) {
+      console.error("Error starting capture:", err);
+      alert("画面キャプチャの開始に失敗しました");
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // キャプチャ停止
   // --------------------------------------------------------------------------
   const stopCapture = async () => {
+    console.log("stopCapture called");
+    // captureTimeoutRef が残っていれば clear
+    if (captureTimeoutRef.current) {
+      clearTimeout(captureTimeoutRef.current);
+      captureTimeoutRef.current = null;
+    }
+
     setIsCapturing(false);
     setIsPaused(false);
 
@@ -85,133 +229,7 @@ export default function ClientHome() {
   };
 
   // --------------------------------------------------------------------------
-  // 差分判定
-  // --------------------------------------------------------------------------
-  const compareImages = (newImageData: ImageData): boolean => {
-    // 初回は必ず保存
-    if (!previousImageData) {
-      return true;
-    }
-    // 画像サイズが異なる場合は強制保存
-    if (
-      previousImageData.width !== newImageData.width ||
-      previousImageData.height !== newImageData.height
-    ) {
-      return true;
-    }
-
-    const width = newImageData.width;
-    const height = newImageData.height;
-    const diffOutput = new Uint8Array(width * height * 4);
-
-    const numDiffPixels = pixelmatch(
-      previousImageData.data,
-      newImageData.data,
-      diffOutput,
-      width,
-      height,
-      {
-        threshold: CAPTURE_CONFIG.THRESHOLD,
-        includeAA: true,
-        alpha: 0.1,
-        diffColor: [255, 0, 0],
-      }
-    );
-
-    const totalPixels = width * height;
-    const diffPercentage = numDiffPixels / totalPixels;
-    const shouldSave = diffPercentage >= CAPTURE_CONFIG.MIN_DIFF_PERCENTAGE;
-    return shouldSave;
-  };
-
-  // --------------------------------------------------------------------------
-  // スクリーンショットを再帰的に撮り続ける
-  // --------------------------------------------------------------------------
-  const takeScreenshot = async () => {
-    if (!videoRef.current || !isCapturing) return;
-
-    const video = videoRef.current;
-
-    // ビデオの準備ができているか確認
-    if (video.readyState !== video.HAVE_ENOUGH_DATA) {
-      // まだ映像が来ていない場合、少し待って再実行
-      if (isCapturing && !isPaused) {
-        setTimeout(() => takeScreenshot(), 1000);
-      }
-      return;
-    }
-
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    try {
-      const newImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const hasSufficientDiff = compareImages(newImageData);
-      setPreviousImageData(newImageData);
-
-      if (hasSufficientDiff) {
-        const dataUrl = canvas.toDataURL("image/png");
-        setImages((prev) => [...prev, dataUrl]);
-      }
-
-      // 1秒後に再度撮影
-      if (isCapturing && !isPaused) {
-        setTimeout(() => takeScreenshot(), 1000);
-      }
-    } catch (error) {
-      console.error("画像の比較中にエラー:", error);
-      // エラーが発生しても撮影を続ける
-      if (isCapturing && !isPaused) {
-        setTimeout(() => takeScreenshot(), 1000);
-      }
-    }
-  };
-
-  // --------------------------------------------------------------------------
-  // 新しいチャットを作成 + キャプチャ開始
-  // --------------------------------------------------------------------------
-  const handleNewChat = async () => {
-    if (isCapturing) return; // すでにキャプチャ中なら何もしない
-
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true, // 明示的にvideoを指定
-      });
-      console.log("🚀 ~ handleNewChat ~ stream:", stream);
-
-      // キャプチャ開始前に画像リスト・差分状態をリセット
-      setImages([]);
-      setPreviousImageData(null);
-
-      // Video要素にストリームをセットし、再生
-      if (!videoRef.current) {
-        console.log("🚀 ~ handleNewChat ~ videoRef:", videoRef);
-        throw new Error("Video element not found");
-      }
-      videoRef.current.srcObject = stream;
-      await videoRef.current.play();
-      console.log("🚀 ~ handleNewChat ~ videoRef:", videoRef);
-
-      // キャプチャ開始フラグを立てる
-      setIsCapturing(true);
-      setIsPaused(false);
-
-      // スクリーンショットの再帰撮影開始
-      console.log("🚀 ~ handleNewChat ~ takeScreenshot");
-      takeScreenshot();
-    } catch (err) {
-      console.error("Error starting capture:", err);
-      alert("画面キャプチャの開始に失敗しました");
-    }
-  };
-
-  // --------------------------------------------------------------------------
-  // アクティブチャットを取得
+  // アクティブチャットを取得 (本来は startCapture 時にチャット作成するなど)
   // --------------------------------------------------------------------------
   const activeChat = chats.find((c) => c.id === activeChatId);
 
@@ -234,7 +252,10 @@ export default function ClientHome() {
   // --------------------------------------------------------------------------
   return (
     <div className="flex h-full">
-      {/* キャプチャ中のみ video要素をレンダリングする（不要なら常時OK） */}
+      {/* キャプチャ用 canvas (表示はしない) */}
+      <canvas ref={canvasRef} style={{ display: "none" }} />
+
+      {/* キャプチャ中のプレビュー用 video (必要に応じて表示/非表示) */}
       <video ref={videoRef} autoPlay style={{ display: "none" }} muted />
 
       {/* サイドバー */}
@@ -248,7 +269,7 @@ export default function ClientHome() {
               {isPaused ? "再開" : "一時停止"}
             </button>
             <button
-              onClick={() => stopCapture()} // trueでアップロード実行
+              onClick={stopCapture}
               className="px-4 py-2 rounded bg-red-500 text-white w-full"
             >
               停止
@@ -257,7 +278,7 @@ export default function ClientHome() {
         ) : (
           <button
             className="bg-blue-500 text-white px-4 py-2 mb-4 rounded w-full"
-            onClick={handleNewChat}
+            onClick={startCapture}
           >
             新しいチャット
           </button>
@@ -272,6 +293,16 @@ export default function ClientHome() {
 
       {/* メインコンテンツ */}
       <div className="flex-1 flex flex-col">
+        {uploadedUrls.length > 0 && (
+          <div style={{ marginTop: 20 }}>
+            <h2>Uploaded Frames</h2>
+            {uploadedUrls.map((url) => (
+              <div key={url} style={{ marginBottom: 10 }}>
+                <img src={url} alt="Uploaded frame" width={240} />
+              </div>
+            ))}
+          </div>
+        )}
         {activeChat ? (
           <ChatWindow
             chat={activeChat}

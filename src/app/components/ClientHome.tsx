@@ -4,20 +4,17 @@ import { Chat, Message } from "@/types";
 import { storage } from "@/utils/clientApp";
 import { getDownloadURL } from "firebase/storage";
 import pixelmatch from "pixelmatch";
-import { useEffect, useRef, useState } from "react";
-import { uploadImage } from "../actions"; // "use server" な関数
+import { useCallback, useEffect, useRef, useState } from "react";
 import ChatSidebar from "./ChatSidebar";
 import ChatWindow from "./ChatWindow";
 
+import { test } from "@/app/actions";
 import { ref as storageRef, uploadBytes } from "firebase/storage";
 
 const CAPTURE_CONFIG = {
   THRESHOLD: 0.1,
   MIN_DIFF_PERCENTAGE: 0.01,
 } as const;
-
-const delay = (milliseconds: number) =>
-  new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 export default function ClientHome() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -32,12 +29,11 @@ export default function ClientHome() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
-  // ★ setTimeout のタイマーIDを保持するための useRef
-  const captureTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Video / Canvas
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imagePartsRef = useRef<
+    { mimeType: string | undefined; fileUri: string }[]
+  >([]);
 
   // 前フレームの ImageData
   const previousImageDataRef = useRef<ImageData | null>(null);
@@ -57,7 +53,7 @@ export default function ClientHome() {
   }, []);
 
   // --------------------------------------------------------------------------
-  // アンマウント時のクリーンアップ: キャプチャ停止 + clearTimeout
+  // アンマウント時のクリーンアップ
   // --------------------------------------------------------------------------
   useEffect(() => {
     return () => {
@@ -70,23 +66,31 @@ export default function ClientHome() {
   // フレームを Firebase へアップロード
   // --------------------------------------------------------------------------
   const uploadFrameToFirebase = async (canvas: HTMLCanvasElement) => {
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
-      const timestamp = new Date().getTime();
-      // 例: frames/frame_{timestamp}.png というパスに保存
-      const imageRef = storageRef(storage, `frames/frame_${timestamp}.png`);
+    const blob = (await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/png")
+    )) as Blob | null;
 
-      try {
-        // BlobをFirebase Storageにアップロード
-        await uploadBytes(imageRef, blob);
-        // アップロード後のダウンロードURLを取得して表示
-        const url = await getDownloadURL(imageRef);
-        console.log("Uploaded!", url);
-        setUploadedUrls((prev) => [...prev, url]);
-      } catch (error) {
-        console.error("Upload failed", error);
-      }
-    }, "image/png");
+    if (!blob) return;
+    const timestamp = new Date().getTime();
+    // 例: frames/frame_{timestamp}.png というパスに保存
+    const imageRef = storageRef(storage, `frames/frame_${timestamp}.png`);
+
+    try {
+      // BlobをFirebase Storageにアップロード
+      const uploadResult = await uploadBytes(imageRef, blob);
+      const mimeType = uploadResult.metadata.contentType;
+      const storageUrl = uploadResult.ref.toString();
+
+      // アップロード後のダウンロードURLを取得
+      const url = await getDownloadURL(imageRef);
+      console.log("Uploaded!", url);
+      setUploadedUrls((prev) => [...prev, url]);
+      // Construct the imagePart with the MIME type and the URL.
+      const fileData = { mimeType, fileUri: storageUrl };
+      imagePartsRef.current.push(fileData);
+    } catch (error) {
+      console.error("Upload failed", error);
+    }
   };
 
   // --------------------------------------------------------------------------
@@ -126,61 +130,78 @@ export default function ClientHome() {
   };
 
   // --------------------------------------------------------------------------
-  // スクリーンショットを再帰的に撮り続ける
+  // 「1回だけ」スクリーンショットを撮る関数（差分判定を含む）
   // --------------------------------------------------------------------------
-  const takeScreenshot = async () => {
-    console.log("Taking screenshot... isPaused:", isPaused);
+  const captureScreenshotOnce = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current) return;
-
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // 映像がまだ取得できていない (幅や高さが 0) 場合はリトライ
+    // 映像がまだ取得できていない
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.log("Video not ready, retrying in 1s...");
-    } else {
-      // Canvas サイズ調整 + 描画
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      // 新しい ImageData を取得して差分判定
-      const newImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      if (hasSignificantDiff(previousImageDataRef.current, newImageData)) {
-        console.log("Saving image...");
-        uploadFrameToFirebase(canvas);
-      } else {
-        console.log("No significant difference, skipping capture");
-      }
-      previousImageDataRef.current = newImageData;
+      console.log("Video not ready yet...");
+      return;
     }
 
-    await delay(10000);
-    await takeScreenshot();
-  };
+    // Canvas サイズ調整 + 描画
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // 新しい ImageData を取得して差分判定
+    const newImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    if (hasSignificantDiff(previousImageDataRef.current, newImageData)) {
+      console.log("Significant difference -> Saving image...");
+      await uploadFrameToFirebase(canvas);
+    } else {
+      console.log("No significant difference -> Skip");
+    }
+    previousImageDataRef.current = newImageData;
+  }, []);
+
+  // --------------------------------------------------------------------------
+  // `isCapturing` と `isPaused` を監視してキャプチャを繰り返す
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    // キャプチャしていない場合、あるいはVideo要素が無い場合は何もしない
+    if (!isCapturing || !videoRef.current) return;
+
+    // setIntervalで 10秒ごとにチェックする
+    const intervalId = setInterval(() => {
+      // 一時停止中なら撮らない
+      if (isPaused) {
+        console.log("Paused... skipping capture");
+        return;
+      }
+      // 一時停止でなければ撮る
+      captureScreenshotOnce();
+    }, 1000);
+
+    // クリーンアップ時
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isCapturing, isPaused, captureScreenshotOnce]);
 
   // --------------------------------------------------------------------------
   // キャプチャ開始
   // --------------------------------------------------------------------------
   const startCapture = async () => {
-    if (isCapturing || isPaused) return; // すでにキャプチャ中なら何もしない
+    if (isCapturing) return; // すでにキャプチャ中なら何もしない
 
     try {
       console.log("Requesting display media...");
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true, // 明示的にvideoを指定
+        video: true,
       });
 
-      // キャプチャ開始前に画像リスト・差分状態をリセット
+      // 開始前にリセット
       setImages([]);
       previousImageDataRef.current = null;
 
-      // Video要素にストリームをセットし、再生
-      if (!videoRef.current) {
-        throw new Error("Video element not found");
-      }
+      if (!videoRef.current) throw new Error("Video element not found");
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
 
@@ -188,9 +209,6 @@ export default function ClientHome() {
 
       setIsCapturing(true);
       setIsPaused(false);
-
-      // スクリーンショット開始
-      await takeScreenshot();
     } catch (err) {
       console.error("Error starting capture:", err);
       alert("画面キャプチャの開始に失敗しました");
@@ -202,12 +220,6 @@ export default function ClientHome() {
   // --------------------------------------------------------------------------
   const stopCapture = async () => {
     console.log("stopCapture called");
-    // captureTimeoutRef が残っていれば clear
-    if (captureTimeoutRef.current) {
-      clearTimeout(captureTimeoutRef.current);
-      captureTimeoutRef.current = null;
-    }
-
     setIsCapturing(false);
     setIsPaused(false);
 
@@ -216,20 +228,12 @@ export default function ClientHome() {
       videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
       videoRef.current.srcObject = null;
     }
-
-    console.log("アップロード対象の画像枚数:", images.length);
-    if (images.length) {
-      try {
-        const res = await uploadImage(images);
-        console.log("🚀 ~ stopCapture ~ VertexAI generateContent:", res);
-      } catch (e) {
-        console.error("画像アップロードに失敗:", e);
-      }
-    }
+    const result = await test();
+    console.log({ result });
   };
 
   // --------------------------------------------------------------------------
-  // アクティブチャットを取得 (本来は startCapture 時にチャット作成するなど)
+  // アクティブチャット
   // --------------------------------------------------------------------------
   const activeChat = chats.find((c) => c.id === activeChatId);
 
@@ -263,7 +267,7 @@ export default function ClientHome() {
         {isCapturing ? (
           <>
             <button
-              onClick={() => setIsPaused(!isPaused)}
+              onClick={() => setIsPaused((prev) => !prev)}
               className="px-4 py-2 rounded bg-yellow-500 text-white w-full"
             >
               {isPaused ? "再開" : "一時停止"}

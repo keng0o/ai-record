@@ -1,6 +1,7 @@
 // lib/firebase.ts
-import { initializeApp } from 'firebase/app';
-import { getStorage } from 'firebase/storage';
+import { initializeApp } from "firebase/app";
+import { getStorage } from "firebase/storage";
+import { getGenerativeModel, getVertexAI } from "firebase/vertexai";
 
 // .env.localなどから読み込むことを推奨
 const firebaseConfig = {
@@ -17,3 +18,7 @@ const firebaseApp = initializeApp(firebaseConfig);
 
 // Storageインスタンスをエクスポート
 export const storage = getStorage(firebaseApp);
+export const vertexAI = getVertexAI(firebaseApp);
+export const model = getGenerativeModel(vertexAI, {
+  model: "gemini-1.5-flash",
+});

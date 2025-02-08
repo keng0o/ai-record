@@ -15,18 +15,22 @@ interface ChatWindowProps {
   onAddMessage: (chatId: string, msg: Message) => void;
 }
 
+interface HistoryMessage {
+  role: "user" | "ai";
+  parts: { text: string }[];
+}
+
 export default function ChatWindow({
   chat,
   images,
   onAddMessage,
 }: ChatWindowProps) {
   const [userInput, setUserInput] = useState("");
-  const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const [chatHistory, setChatHistory] = useState<HistoryMessage[]>([]);
 
   const handleSend = async () => {
     if (!userInput.trim()) return;
 
-    // 1. ユーザーのメッセージを追加
     const userMsg: Message = {
       role: "user",
       content: userInput,
@@ -34,20 +38,14 @@ export default function ChatWindow({
     };
     onAddMessage(chat.id, userMsg);
 
-    // 2. APIを呼び出してAI応答を取得
     try {
       const res = await fetch("/api/askQuestion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chatId: chat.id,
-          question: userInput,
-        }),
+        body: JSON.stringify({ chatId: chat.id, question: userInput }),
       });
       const data = await res.json();
-      console.log("🚀 ~ handleSend ~ data:", data);
 
-      // 3. AIメッセージを追加
       const aiMsg: Message = {
         role: "ai",
         content: data.answer,
@@ -55,7 +53,6 @@ export default function ChatWindow({
       };
       onAddMessage(chat.id, aiMsg);
 
-      // 4. チャット履歴を更新
       if (data.history) {
         setChatHistory(data.history);
       }
@@ -67,8 +64,8 @@ export default function ChatWindow({
   };
 
   return (
-    <div className="flex-1 flex flex-col p-4">
-      {/* スクリーンショット一覧 (サムネ表示) */}
+    <div className="flex flex-col flex-1 p-4">
+      {/* Image Thumbnails */}
       <div className="flex overflow-x-auto mb-4 space-x-2">
         {images.map((image, i) => (
           <img
@@ -80,9 +77,8 @@ export default function ChatWindow({
         ))}
       </div>
 
-      {/* メッセージ表示 */}
+      {/* Messages */}
       <div className="flex-1 overflow-auto mb-4 border p-2">
-        {/* ローカルのメッセージ履歴 */}
         {chat.messages.map((msg, i) => (
           <div key={i} className="mb-2">
             <div
@@ -96,16 +92,15 @@ export default function ChatWindow({
           </div>
         ))}
 
-        {/* Vertex AIのチャット履歴 */}
         {chatHistory.map((msg, i) => (
           <div key={`history-${i}`} className="mb-2 text-gray-600">
             <div>{msg.role === "user" ? "You" : "AI"} (履歴)</div>
-            <div>{msg.parts[0].text}</div>
+            <div>{msg.parts[0]?.text || ""}</div>
           </div>
         ))}
       </div>
 
-      {/* 入力フォーム */}
+      {/* Input Form */}
       <div className="flex">
         <input
           type="text"

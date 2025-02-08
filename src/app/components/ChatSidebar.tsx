@@ -1,28 +1,32 @@
 "use client";
 
-import { Chat } from "@/types";
+import { Session } from "@/types";
 
 interface ChatSidebarProps {
-  chats: Chat[];
+  sessions: Session[];
   activeChatId: string | null;
   setActiveChatId: (id: string) => void;
 }
 
 export default function ChatSidebar({
-  chats,
+  sessions,
   activeChatId,
   setActiveChatId,
 }: ChatSidebarProps) {
   return (
     <div>
-      {chats.map((chat) => (
+      {sessions.map((session) => (
         <div
-          key={chat.id}
-          onClick={() => setActiveChatId(chat.id)}
+          key={session.id}
+          onClick={() => setActiveChatId(session.id)}
           className={`p-2 mb-2 cursor-pointer rounded ${
-            chat.id === activeChatId ? "bg-blue-300" : "bg-white"
+            session.id === activeChatId ? "bg-blue-300" : "bg-white"
           }`}
-        ></div>
+        >
+          <div className="text-sm font-bold">
+            {session.createdAt.toISOString()}
+          </div>
+        </div>
       ))}
     </div>
   );

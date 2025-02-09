@@ -1,6 +1,5 @@
 "use client";
 
-import { Chat } from "@/types";
 import { useState } from "react";
 
 interface Message {
@@ -10,52 +9,38 @@ interface Message {
 }
 
 interface ChatWindowProps {
-  chat: Chat;
-  images: string[];
-  onAddMessage: (chatId: string, msg: Message) => void;
+  onAddMessage: (prompt: string) => void;
 }
 
-interface HistoryMessage {
-  role: "user" | "ai";
-  parts: { text: string }[];
-}
+// interface HistoryMessage {
+//   role: "user" | "ai";
+//   parts: { text: string }[];
+// }
 
-export default function ChatWindow({
-  chat,
-  images,
-  onAddMessage,
-}: ChatWindowProps) {
+export default function ChatWindow({ onAddMessage }: ChatWindowProps) {
   const [userInput, setUserInput] = useState("");
-  const [chatHistory, setChatHistory] = useState<HistoryMessage[]>([]);
+  // const [chatHistory, setChatHistory] = useState<HistoryMessage[]>([]);
 
   const handleSend = async () => {
     if (!userInput.trim()) return;
-
-    const userMsg: Message = {
-      role: "user",
-      content: userInput,
-      timestamp: new Date().toISOString(),
-    };
-    onAddMessage(chat.id, userMsg);
+    onAddMessage(userInput.trim());
 
     try {
-      const res = await fetch("/api/askQuestion", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId: chat.id, question: userInput }),
-      });
-      const data = await res.json();
-
-      const aiMsg: Message = {
-        role: "ai",
-        content: data.answer,
-        timestamp: new Date().toISOString(),
-      };
-      onAddMessage(chat.id, aiMsg);
-
-      if (data.history) {
-        setChatHistory(data.history);
-      }
+      // const res = await fetch("/api/askQuestion", {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify({ chatId: chat.id, question: userInput }),
+      // });
+      // const data = await res.json();
+      // const aiMsg: Message = {
+      //   role: "ai",
+      //   content: data.answer,
+      //   timestamp: new Date().toISOString(),
+      // };
+      // onAddMessage(chat.id, aiMsg);
+      // if (data.history) {
+      //   setChatHistory(data.history);
+      // }
     } catch (error) {
       console.error("Error in askQuestion:", error);
     }
@@ -65,21 +50,9 @@ export default function ChatWindow({
 
   return (
     <div className="flex flex-col flex-1 p-4">
-      {/* Image Thumbnails */}
-      <div className="flex overflow-x-auto mb-4 space-x-2">
-        {images.map((image, i) => (
-          <img
-            key={i}
-            src={image}
-            alt={`Screenshot-${i}`}
-            className="w-24 h-24 object-cover border"
-          />
-        ))}
-      </div>
-
       {/* Messages */}
       <div className="flex-1 overflow-auto mb-4 border p-2">
-        {chat.messages.map((msg, i) => (
+        {/* {chat.messages.map((msg, i) => (
           <div key={i} className="mb-2">
             <div
               className={
@@ -90,14 +63,14 @@ export default function ChatWindow({
             </div>
             <div>{msg.content}</div>
           </div>
-        ))}
+        ))} */}
 
-        {chatHistory.map((msg, i) => (
+        {/* {chatHistory.map((msg, i) => (
           <div key={`history-${i}`} className="mb-2 text-gray-600">
             <div>{msg.role === "user" ? "You" : "AI"} (履歴)</div>
             <div>{msg.parts[0]?.text || ""}</div>
           </div>
-        ))}
+        ))} */}
       </div>
 
       {/* Input Form */}

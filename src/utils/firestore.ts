@@ -1,4 +1,4 @@
-import { firestore } from "@/utils/clientApp";
+import { db } from "@/utils/clientApp";
 import {
   addDoc,
   collection,
@@ -26,10 +26,7 @@ export function createLocalSessionStore(
     async get(
       sessionId: string
     ): Promise<SessionData<MySessionState> | undefined> {
-      const docRef = doc(
-        collection(firestore, "user", userId, "record"),
-        sessionId
-      );
+      const docRef = doc(collection(db, "user", userId, "session"), sessionId);
       const docSnap = await getDoc(docRef);
       if (!docSnap.exists) return undefined;
       return docSnap.data() as SessionData<MySessionState>;
@@ -38,30 +35,27 @@ export function createLocalSessionStore(
       sessionId: string,
       sessionData: SessionData<MySessionState>
     ): Promise<void> {
-      const docRef = doc(
-        collection(firestore, "user", userId, "record"),
-        sessionId
-      );
+      const docRef = doc(collection(db, "user", userId, "session"), sessionId);
       await setDoc(docRef, sessionData);
     },
   };
 }
 
 export const getSessions = async (userId: string) => {
-  const q = query(collection(firestore, "user", userId, "record"));
+  const q = query(collection(db, "user", userId, "record"));
   const docSnap = await getDocs(q);
   if (docSnap.empty) {
     return [];
   }
   return docSnap.docs.map((doc) => {
     const { date, reply } = doc.data() as {
-      date: Timestamp;
+      date: string;
       reply: string;
     };
     return {
       sessionId: doc.id,
       role: "user",
-      date: date.toDate().toISOString(),
+      date: date,
       reply,
     };
   });
@@ -69,7 +63,7 @@ export const getSessions = async (userId: string) => {
 
 export const getRecord = async (userId: string, recordId: string) => {
   // コレクションパスを"user/{uid}/record"に変更
-  const docRef = doc(collection(firestore, "user", userId, "record"), recordId);
+  const docRef = doc(collection(db, "user", userId, "record"), recordId);
   const docSnap = await getDoc(docRef);
   if (!docSnap.exists) {
     return null;
@@ -77,7 +71,7 @@ export const getRecord = async (userId: string, recordId: string) => {
   const { date, reply } = docSnap.data() as { date: Timestamp; reply: string };
   return {
     role: "user",
-    date: date.toDate().toISOString(),
+    date: date,
     reply,
   };
 };
@@ -86,7 +80,7 @@ export const addRecord = async (
   userId: string,
   data: { date: string; reply: string }
 ) => {
-  const docRef = collection(firestore, "user", userId, "record");
+  const docRef = collection(db, "user", userId, "record");
   await addDoc(docRef, data);
 };
 
@@ -101,8 +95,7 @@ export const addUser = async ({
   email: string;
   photoURL: string;
 }) => {
-  // コレクションパスを"user"に変更
-  const docRef = doc(firestore, "user", uid);
+  const docRef = doc(db, "user", uid);
   await setDoc(docRef, {
     displayName,
     email,

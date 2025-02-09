@@ -104,20 +104,28 @@ export async function postImage({ image }: { image: string }) {
   };
 }
 
-export async function chat({
+export async function postMessage({
+  uid,
   sessionId,
-  store,
   prompt,
 }: {
+  uid: string;
   sessionId: string;
-  store: ReturnType<typeof createLocalSessionStore>;
   prompt: string;
 }) {
+  const store = createLocalSessionStore(uid);
+
   const now = new Date();
 
   let session = await ai.loadSession(sessionId, { store });
   if (!session) {
-    session = ai.createSession<MySessionState>({ store });
+    session = ai.createSession<MySessionState>({
+      store,
+      initialState: {
+        date: now.toISOString(),
+        reply: "",
+      },
+    });
   }
 
   // 4) チャットを送信

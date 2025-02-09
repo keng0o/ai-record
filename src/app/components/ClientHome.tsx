@@ -4,12 +4,12 @@ import pixelmatch from "pixelmatch";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 
-import { Chat, Message } from "@/types";
+import { Chat } from "@/types";
 import ChatSidebar from "./ChatSidebar";
 import ChatWindow from "./ChatWindow";
 // import { chatWithAI } from "@/app/actions";
-import { postImage } from "@/app/actions";
-import { createLocalSessionStore } from "@/utils/firestore";
+import { postImage, postMessage } from "@/app/actions";
+import { addRecord, createLocalSessionStore } from "@/utils/firestore";
 
 const CAPTURE_CONFIG = {
   THRESHOLD: 0.1,
@@ -23,8 +23,6 @@ export default function ClientHome({
   sessions: { date: string }[];
   uid: string;
 }) {
-  console.log("🚀 ~ uid:", uid);
-  console.log("🚀 ~ sessions:", sessions);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
@@ -36,7 +34,8 @@ export default function ClientHome({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previousImageDataRef = useRef<ImageData | null>(null);
-  const session = createLocalSessionStore(uid);
+  const store = createLocalSessionStore(uid);
+  console.log("🚀 ~ store:", store);
 
   /**
    * Cleanup on unmount
@@ -105,10 +104,11 @@ export default function ClientHome({
       const image = canvas.toDataURL("image/png");
       setCapturedImages((prev) => [...prev, image]);
       const result = await postImage({ image });
-      await session.save(currentSessionId, {
-        state: { date: result.date.toISOString(), reply: result.reply },
+      console.log("Image posted:", result.reply);
+      await addRecord(uid, {
+        date: result.date.toISOString(),
+        reply: result.reply,
       });
-      console.log("session save:", result.reply);
     } else {
       console.log("No significant difference detected. Skipping.");
     }
@@ -160,6 +160,16 @@ export default function ClientHome({
     }
   };
 
+  const handleSessionChat = async () => {
+    const sessionId = uuidv4();
+    setActiveChatId(sessionId);
+    const newChat: Chat = {
+      id: sessionId,
+      messages: [],
+    };
+    setChats((prev) => [...prev, newChat]);
+  };
+
   /**
    * Handle stop capturing
    */
@@ -178,11 +188,18 @@ export default function ClientHome({
   /**
    * Add a new message to a specific chat
    */
-  const handleAddMessage = (chatId: string, msg: Message) => {
+  const handleAddMessage = async (prompt: string) => {
+    if (!activeChatId) return;
+    const response = await postMessage({
+      uid,
+      sessionId: activeChatId,
+      prompt,
+    });
+    console.log("🚀 ~ handleAddMessage ~ response:", response);
     setChats((prevChats) =>
       prevChats.map((chat) => {
-        if (chat.id === chatId) {
-          return { ...chat, messages: [...chat.messages, msg] };
+        if (chat.id === activeChatId) {
+          // return { ...chat, messages: [...chat.messages, msg] };
         }
         return chat;
       })
@@ -217,12 +234,20 @@ export default function ClientHome({
             </button>
           </>
         ) : (
-          <button
-            className="bg-blue-500 text-white px-4 py-2 mb-4 rounded w-full"
-            onClick={handleStartCapture}
-          >
-            新しいチャット
-          </button>
+          <>
+            <button
+              className="bg-blue-500 text-white px-4 py-2 mb-4 rounded w-full"
+              onClick={handleSessionChat}
+            >
+              記録の振り返り
+            </button>
+            <button
+              className="bg-blue-500 text-white px-4 py-2 mb-4 rounded w-full"
+              onClick={handleStartCapture}
+            >
+              記録を開始
+            </button>
+          </>
         )}
 
         <ChatSidebar
@@ -235,11 +260,7 @@ export default function ClientHome({
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {activeChat ? (
-          <ChatWindow
-            chat={activeChat}
-            images={capturedImages}
-            onAddMessage={handleAddMessage}
-          />
+          <ChatWindow onAddMessage={handleAddMessage} />
         ) : (
           <div className="flex-1 flex justify-center items-center">
             <p className="text-gray-500">

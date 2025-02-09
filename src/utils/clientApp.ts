@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, initializeServerApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
@@ -14,12 +14,16 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
-
+// サーバーサイドでのみ利用する場合は以下のようにする
+let app;
+if (typeof window === "undefined") {
+  app = initializeServerApp(firebaseConfig, {});
+}
 // アプリ初期化
-const app = initializeApp(firebaseConfig);
+app = initializeApp(firebaseConfig);
 export const storage = getStorage(app);
 export const vertexAI = getVertexAI(app);
-export const firestore = getFirestore(app);
+export const db = getFirestore(app);
 export const auth = getAuth();
 export const googleAuthProvider = new GoogleAuthProvider();
 export const model = getGenerativeModel(vertexAI, {

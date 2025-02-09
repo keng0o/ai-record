@@ -21,6 +21,7 @@
     "pixelmatch": "^6.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "server-only": "^0.0.1",
     "tailwindcss": "^4.0.3",
     "uuid": "^11.0.5"
   },

@@ -24,7 +24,8 @@ export default function ChatSidebar({
           }`}
         >
           <div className="text-sm font-bold">
-            {session.createdAt.toISOString()}
+            sss
+            {/* {session.createdAt.toISOString()} */}
           </div>
         </div>
       ))}

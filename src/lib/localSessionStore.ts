@@ -26,7 +26,6 @@ export function createLocalSessionStore(userId: string): SessionStore {
     },
 
     async save(sessionId: string, sessionData: SessionData): Promise<void> {
-      console.log("🚀 ~ save ~ sessionData:", sessionData);
       const docRef = doc(collection(db, "user", userId, "session"), sessionId);
       setDoc(docRef, sessionData);
     },

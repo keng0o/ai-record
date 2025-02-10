@@ -10,10 +10,6 @@ import { getSession } from "@/lib/firestore";
 import { Session } from "@/types";
 import Home from "./components/Home";
 
-/**
- * Main dashboard page: checks Firebase auth state;
- * if no user, redirects to "/login".
- */
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);

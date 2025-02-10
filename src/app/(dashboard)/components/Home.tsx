@@ -48,7 +48,11 @@ function stopMediaTracks(video: HTMLVideoElement) {
  * 1) Screen capture & difference checking.
  * 2) Session session creation and message handling.
  */
-export default function ClientHome({ uid }: { uid: string }) {
+type HomeProps = {
+  uid: string;
+};
+
+export default function Home({ uid }: HomeProps) {
   const [capturing, setCapturing] = useState(false);
   const [paused, setPaused] = useState(false);
   const [session, setSession] = useState<Session>();
@@ -175,8 +179,8 @@ export default function ClientHome({ uid }: { uid: string }) {
 
       setCapturing(true);
       setPaused(false);
-    } catch (err: any) {
-      if (err && err.name === "NotReadableError") {
+    } catch (err) {
+      if (err && err === "NotReadableError") {
         console.error("NotReadableError: Could not start video source", err);
         alert(
           "ビデオソースが利用できません。他のアプリで使用中の可能性があります"

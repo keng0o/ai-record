@@ -797,20 +797,15 @@ export default function DashboardPage() {
       >
         <canvas ref={canvasRef} className="w-full h-full" />
 
-        {!user ? (
-          <div className="absolute">
-            <button
-              className="text-xl mt-32 text-black font-semibold border-1 rounded-4xl border-black px-4 py-1 cursor-pointer"
-              onClick={signInWithGoogle}
-            >
-              登録はこちら
-            </button>
-          </div>
-        ) : (
-          <div className="absolute mt-32">
-            <p className="text-xl text-black font-medium ">Loading...</p>
-          </div>
-        )}
+        <div className="absolute">
+          <button
+            className="text-xl mt-32 text-black font-semibold border-1 rounded-4xl border-black px-4 py-1 cursor-pointer"
+            onClick={signInWithGoogle}
+          >
+            登録はこちら
+          </button>
+        </div>
+
         <div className="absolute mt-56">
           <p className="text-sm text-black font-medium ">
             AIがPC画面を記録して日記を作成

@@ -12,6 +12,7 @@
   "private": true,
   "dependencies": {
     "@genkit-ai/googleai": "^0.9.12",
+    "@genkit-ai/vertexai": "^0.9.12",
     "@google-cloud/vertexai": "^1.9.3",
     "@tailwindcss/postcss": "^4.0.3",
     "@types/pixelmatch": "^5.2.6",

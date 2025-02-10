@@ -73,8 +73,7 @@ export async function createSession(uid: string) {
   const chat = session.chat({
     system: `私の過去の記録です。${JSON.stringify(records)}`,
   });
-  const response = await chat.send("過去の記録の要約をしてください");
-  console.log("🚀 ~ createSession ~ response:", response.text);
+  await chat.send("過去の記録の要約をしてください");
   return session.id;
 }
 

@@ -17,7 +17,6 @@ import Home from "./components/Home";
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [sessionId, setSessionId] = useState<string>();
   const [session, setSession] = useState<Session>();
 
   useEffect(() => {
@@ -28,7 +27,6 @@ export default function DashboardPage() {
       }
       const _sessionId = await createSession(firebaseUser.uid);
       console.log("🚀 ~ unsubscribe ~ _sessionId:", _sessionId);
-      setSessionId(_sessionId);
       setUser(firebaseUser);
       const _session = await getSession(firebaseUser.uid, _sessionId);
       console.log("🚀 ~ unsubscribe ~ _session:", _session);

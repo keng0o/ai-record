@@ -10,17 +10,17 @@ runConfig:
 # Environment variables and secrets.
 env:
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_API_KEY
+    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_API_KEY/versions/1
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN/versions/1
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_PROJECT_ID/versions/1
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET/versions/1
   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID/versions/1
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
-    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_APP_ID
+    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_APP_ID/versions/1
   - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
-    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+    secret: projects/347475623638/secrets/NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID/versions/1
 

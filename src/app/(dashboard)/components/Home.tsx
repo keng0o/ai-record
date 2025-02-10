@@ -3,19 +3,21 @@
 import pixelmatch from "pixelmatch";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Chat } from "@/types";
-import ChatSidebar from "./ChatSidebar";
-import ChatWindow from "./ChatWindow";
-// import { chatWithAI } from "@/app/actions";
 import { postImage, postMessage } from "@/app/actions";
-import { addRecord, createLocalSessionStore } from "@/utils/firestore";
+import { addRecord } from "@/lib/firestore";
 
+import { Session } from "@/types";
+import Window from "./Window";
+
+/** Configuration constants */
 const CAPTURE_CONFIG = {
   THRESHOLD: 0.1,
   MIN_DIFF_PERCENTAGE: 0.01,
 } as const;
 
-// ヘルパー関数: キャンバスから画像データを取得
+/**
+ * Helper: draw current frame from video to canvas and retrieve ImageData.
+ */
 function getCanvasImageData(
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement
@@ -28,7 +30,9 @@ function getCanvasImageData(
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }
 
-// ヘルパー関数: メディアトラックを停止
+/**
+ * Helper: stop all media tracks in the given video element.
+ */
 function stopMediaTracks(video: HTMLVideoElement) {
   if (video.srcObject instanceof MediaStream) {
     video.srcObject.getTracks().forEach((track) => track.stop());
@@ -36,28 +40,27 @@ function stopMediaTracks(video: HTMLVideoElement) {
   }
 }
 
+/**
+ * Main component that handles:
+ * 1) Screen capture & difference checking.
+ * 2) Session session creation and message handling.
+ */
 export default function ClientHome({
-  sessions,
   uid,
+  session,
 }: {
-  sessions: { date: string }[];
   uid: string;
+  session: Session;
 }) {
-  const [sessionId, setActiveChatId] = useState<string>();
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [capturedImages, setCapturedImages] = useState<string[]>([]);
-
   const [capturing, setCapturing] = useState(false);
   const [paused, setPaused] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previousImageDataRef = useRef<ImageData | null>(null);
-  const store = createLocalSessionStore(uid);
-  console.log("🚀 ~ store:", store);
 
   /**
-   * Cleanup on unmount
+   * Cleanup on unmount: stop capture if still running.
    */
   useEffect(() => {
     return () => {
@@ -66,15 +69,16 @@ export default function ClientHome({
   }, []);
 
   /**
-   * Compare two ImageData objects and check if there's a significant difference
+   * Compare two ImageData objects and check if there's a significant difference.
    */
   const checkSignificantDiff = (
     oldData: ImageData | null,
     newData: ImageData
   ): boolean => {
     if (!oldData) return true;
-    if (oldData.width !== newData.width || oldData.height !== newData.height)
+    if (oldData.width !== newData.width || oldData.height !== newData.height) {
       return true;
+    }
 
     const { width, height } = newData;
     const diffOutput = new Uint8Array(width * height * 4);
@@ -94,73 +98,67 @@ export default function ClientHome({
 
     const totalPixels = width * height;
     const diffRatio = numDiffPixels / totalPixels;
-
     return diffRatio >= CAPTURE_CONFIG.MIN_DIFF_PERCENTAGE;
   };
 
   /**
-   * Capture a single screenshot and post if there's a significant difference
+   * Capture a single screenshot and, if there is a significant difference,
+   * send it to the server for AI-based extraction.
    */
   const captureScreenshot = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
+
     if (video.videoWidth === 0 || video.videoHeight === 0) {
       console.log("Video not ready yet...");
       return;
     }
+
     const newImageData = getCanvasImageData(video, canvas);
     if (!newImageData) return;
 
     if (checkSignificantDiff(previousImageDataRef.current, newImageData)) {
       const image = canvas.toDataURL("image/png");
-      setCapturedImages((prev) => [...prev, image]);
+
       const result = await postImage({ image });
-      console.log("Image posted:", result.reply);
       await addRecord(uid, {
         date: result.date.toISOString(),
         reply: result.reply,
       });
-    } else {
-      console.log("No significant difference detected. Skipping.");
     }
     previousImageDataRef.current = newImageData;
   }, [uid]);
 
   /**
-   * Start repeated capture using setInterval
+   * Start repeated capture at a fixed interval.
    */
   useEffect(() => {
     if (!capturing || !videoRef.current) return;
 
     const intervalId = setInterval(() => {
-      if (paused) {
-        console.log("Capture paused.");
-        return;
+      if (!paused) {
+        void captureScreenshot();
       }
-      captureScreenshot();
     }, 1000);
 
     return () => clearInterval(intervalId);
   }, [capturing, paused, captureScreenshot]);
 
   /**
-   * Handle start capturing
+   * Handle the start of a screen capture.
    */
   const handleStartCapture = async () => {
     if (capturing) return;
-
     try {
-      console.log("Requesting display media...");
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
       });
-
-      // Reset before capturing
-      setCapturedImages([]);
       previousImageDataRef.current = null;
 
-      if (!videoRef.current) throw new Error("Video element not found");
+      if (!videoRef.current) {
+        throw new Error("Video element not found");
+      }
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
 
@@ -172,50 +170,26 @@ export default function ClientHome({
     }
   };
 
-  const handleSessionChat = async () => {
-    const newChat: Chat = {
-      id: sessionId,
-      messages: [],
-    };
-    setChats((prev) => [...prev, newChat]);
-  };
-
   /**
-   * Handle stop capturing
+   * Stop capturing entirely.
    */
-  const handleStopCapture = async () => {
-    console.log("Stopping capture...");
+  const handleStopCapture = () => {
     setCapturing(false);
     setPaused(false);
+
     if (videoRef.current) {
       stopMediaTracks(videoRef.current);
     }
   };
 
-  /**
-   * Add a new message to a specific chat
-   */
   const handleAddMessage = async (prompt: string) => {
     const response = await postMessage({
       uid,
-      sessionId: sessionId,
+      sessionId: session.id,
       prompt,
     });
     console.log("🚀 ~ handleAddMessage ~ response:", response);
-    setChats((prevChats) =>
-      prevChats.map((chat) => {
-        if (chat.id === sessionId) {
-          // return { ...chat, messages: [...chat.messages, msg] };
-        }
-        return chat;
-      })
-    );
   };
-
-  /**
-   * Identify the active chat object
-   */
-  const activeChat = chats.find((c) => c.id === sessionId);
 
   return (
     <div className="flex h-full">
@@ -243,37 +217,18 @@ export default function ClientHome({
           <>
             <button
               className="bg-blue-500 text-white px-4 py-2 mb-4 rounded w-full"
-              onClick={handleSessionChat}
-            >
-              記録の振り返り
-            </button>
-            <button
-              className="bg-blue-500 text-white px-4 py-2 mb-4 rounded w-full"
               onClick={handleStartCapture}
             >
               記録を開始
             </button>
           </>
         )}
-
-        <ChatSidebar
-          sessions={sessions}
-          sessionId={sessionId}
-          setActiveChatId={setActiveChatId}
-        />
       </div>
-
-      {/* Main Content */}
       <div className="flex-1 flex flex-col">
-        {activeChat ? (
-          <ChatWindow onAddMessage={handleAddMessage} />
-        ) : (
-          <div className="flex-1 flex justify-center items-center">
-            <p className="text-gray-500">
-              チャットを選択、または作成してください
-            </p>
-          </div>
-        )}
+        <Window
+          onAddMessage={handleAddMessage}
+          threads={session.threads.main}
+        />
       </div>
     </div>
   );

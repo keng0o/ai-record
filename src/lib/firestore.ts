@@ -1,4 +1,5 @@
-import { db } from "@/utils/clientApp";
+import { db } from "@/lib/firebase";
+import { Session } from "@/types";
 import {
   addDoc,
   collection,
@@ -42,22 +43,14 @@ export function createLocalSessionStore(
 }
 
 export const getSessions = async (userId: string) => {
-  const q = query(collection(db, "user", userId, "record"));
+  const q = query(collection(db, "user", userId, "session"));
   const docSnap = await getDocs(q);
   if (docSnap.empty) {
     return [];
   }
   return docSnap.docs.map((doc) => {
-    const { date, reply } = doc.data() as {
-      date: string;
-      reply: string;
-    };
-    return {
-      sessionId: doc.id,
-      role: "user",
-      date: date,
-      reply,
-    };
+    const data = doc.data() as Session;
+    return data;
   });
 };
 
@@ -116,4 +109,13 @@ export const getReords = async (userId: string) => {
       reply,
     };
   });
+};
+
+export const getSession = async (userId: string, sessionId: string) => {
+  const docRef = doc(collection(db, "user", userId, "session"), sessionId);
+  const docSnap = await getDoc(docRef);
+  if (!docSnap.exists) {
+    return null;
+  }
+  return docSnap.data() as Session;
 };

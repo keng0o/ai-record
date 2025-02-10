@@ -1,11 +1,23 @@
-export interface Message {
-  role: "user" | "ai";
-  content: string;
-  date: string;
+export interface User {
+  displayName: string;
+  email: string;
+  photoURL: string;
 }
 
 export interface Session {
   id: string;
-  createdAt: Date;
-  message: Message[];
+  threads: {
+    main: Thread[];
+  };
+}
+
+export interface Thread {
+  content: [{ text: string }];
+  role: "user" | "model" | "system";
+  metadata: { preamble: boolean };
+}
+
+export interface Record {
+  date: string;
+  reply: string;
 }

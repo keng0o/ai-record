@@ -1,9 +1,9 @@
 "use server";
 
-import { ai } from "@/utils/aiConfig";
-import { createLocalSessionStore } from "@/utils/localSessionStore";
+import { ai } from "@/lib/aiConfig";
+import { createLocalSessionStore } from "@/lib/localSessionStore";
 
-import { getReords } from "@/utils/firestore";
+import { getReords } from "@/lib/firestore";
 
 export async function postImage({ image }: { image: string }) {
   const now = new Date();
@@ -66,20 +66,36 @@ async function getAIChat(sessionId: string | undefined, uid: string) {
   }
 }
 
+export async function createSession(uid: string) {
+  const store = createLocalSessionStore(uid);
+  const now = new Date();
+
+  const session = ai.createSession({
+    store,
+  });
+  const records = await getReords(uid);
+  const chat = session.chat({
+    system: `私の過去の記録です。${JSON.stringify(records)}`,
+  });
+  const response = await chat.send("過去の記録の要約をしてください");
+  console.log("🚀 ~ createSession ~ response:", response.text);
+  return session.id;
+}
+
 export async function postMessage({
   uid,
   sessionId,
   prompt,
 }: {
   uid: string;
-  sessionId: string | undefined;
+  sessionId: string;
   prompt: string;
 }) {
   const now = new Date();
   // 4) チャットを送信
-  const session = await getSession(sessionId, uid);
-  const sessionChat = await getAIChat(sessionId, uid);
-
+  const store = createLocalSessionStore(uid);
+  const session = await ai.loadSession(sessionId, { store });
+  const sessionChat = session.chat();
   const response = await sessionChat.send(
     `あなたは、過去の時系列の日記データに基づいて、ユーザーの質問に答えるAIです。
 

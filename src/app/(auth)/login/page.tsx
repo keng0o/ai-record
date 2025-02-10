@@ -1,7 +1,7 @@
 "use client";
 
-import { auth, googleAuthProvider } from "@/utils/clientApp";
-import { addUser } from "@/utils/firestore";
+import { auth, googleAuthProvider } from "@/lib/firebase";
+import { addUser } from "@/lib/firestore";
 import { onAuthStateChanged, signInWithPopup } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";

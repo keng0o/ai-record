@@ -1,6 +1,6 @@
 import "server-only";
 
-import { db } from "@/utils/clientApp";
+import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, setDoc } from "firebase/firestore";
 
 import { SessionData, SessionStore } from "genkit";

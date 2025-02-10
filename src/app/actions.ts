@@ -11,16 +11,12 @@ export async function postImage({ image }: { image: string }) {
   // 4) チャットを送信
   const chat = ai.chat();
   const prompt = `[指示]
-スクリーンショットを添付します。
+スクリーンショットをに写っている情報をすべて抽出してください。感想や意見を含めないようにしてください。出力は情報だけにしてください。日本語で出力してください。
 
-これらのスクリーンショットに写っている情報をすべて抽出し、以下の点に注意して、事実に基づいた詳細なレポートを作成してください。
-
-1. 各スクリーンショットに写っている情報を網羅的に記述する。
-2. 情報源（スクリーンショットのファイル名）を明記する。
-3. 機密事項や個人情報が含まれる場合は、適切に伏せる。
-
-  撮影日時: ${now.toLocaleDateString()}
-  `.trim();
+1.情報を網羅的に記述する。
+2.機密事項や個人情報が含まれる場合は、適切に伏せる。
+撮影日時: ${now.toLocaleDateString()}
+`.trim();
 
   const response = await chat.send([
     {
@@ -34,7 +30,7 @@ export async function postImage({ image }: { image: string }) {
 
   return {
     reply: response.text,
-    date: now,
+    date: now.toISOString(),
   };
 }
 
@@ -71,9 +67,9 @@ export async function createSession(uid: string) {
   });
   const records = await getReords(uid);
   const chat = session.chat({
-    system: `私の過去の記録です。${JSON.stringify(records)}`,
+    system: `記録です。${JSON.stringify(records)}`,
   });
-  await chat.send("過去の記録の要約をしてください");
+  await chat.send("記録を要約をしてください");
   return session.id;
 }
 
@@ -92,20 +88,14 @@ export async function postMessage({
   const session = await ai.loadSession(sessionId, { store });
   const sessionChat = session.chat();
   const response = await sessionChat.send(
-    `あなたは、過去の時系列の日記データに基づいて、ユーザーの質問に答えるAIです。
-
-## 日記データ
-session情報をもとに
-
+    `あなたは、過去の記録に基づいて、ユーザーの質問に答えるAIです。
 ## 指示
 
 1. ユーザーからの質問を受け取ります。
-2. 質問内容を理解し、日記データの中から関連する情報を検索します。
+2. 質問内容を理解し、記録の中から関連する情報を検索します。
 3. 関連する情報に基づいて、質問に対する回答を生成します。
 4. 回答は、事実に基づいた正確なものである必要があります。
-5. 回答は、ユーザーにとって分かりやすく、丁寧な言葉遣いである必要があります。
-6. 回答の中で、日記データからの引用を適切に行うようにしてください。
-7. 質問内容によっては、複数の日記データを参照する必要がある場合があります。
+5. 回答の中で、記録からの引用を適切に行うようにしてください。
 
 ## ユーザーからの質問
 ${prompt}

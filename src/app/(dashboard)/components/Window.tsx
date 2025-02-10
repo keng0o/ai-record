@@ -22,9 +22,9 @@ export default function Window({
   };
 
   return (
-    <div className="flex flex-col flex-1 p-4">
-      {/* Messages */}
-      <div className="flex-1 overflow-auto mb-4 border p-2">
+    <div className="flex flex-col h-full p-4">
+      {/* Messages Area: Only this area will scroll */}
+      <div className="flex-1 overflow-auto mb-4 border p-2 border-white">
         {threads
           .filter((thread) => thread.role !== "system")
           .map((thread: Thread, i: number) => (
@@ -36,26 +36,24 @@ export default function Window({
               >
                 {thread.role === "user" ? "You" : "AI"}
               </div>
-              <div>{thread.content[0].text}</div>
+              <div className="whitespace-pre-wrap">
+                {thread.content[0].text}
+              </div>
             </div>
           ))}
       </div>
 
-      {/* Input Form */}
+      {/* Input Form remains fixed at the bottom */}
       <div className="flex">
         <input
           type="text"
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              handleSend();
-            }
-          }}
           className="border flex-1 px-2 py-1"
           placeholder="質問を入力..."
         />
         <button
+          type="button"
           onClick={handleSend}
           className="bg-blue-500 text-white px-4 py-1 ml-2 rounded"
         >

@@ -1,12 +1,15 @@
 "use client";
 
+import { db } from "@/lib/firebase";
+import { Session } from "@/types";
+import { collection, doc, onSnapshot } from "firebase/firestore";
+
 import pixelmatch from "pixelmatch";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { postImage, postMessage } from "@/app/actions";
 import { addRecord } from "@/lib/firestore";
 
-import { Session } from "@/types";
 import Window from "./Window";
 
 /** Configuration constants */
@@ -47,13 +50,14 @@ function stopMediaTracks(video: HTMLVideoElement) {
  */
 export default function ClientHome({
   uid,
-  session,
+  sessionId,
 }: {
   uid: string;
-  session: Session;
+  sessionId: string;
 }) {
   const [capturing, setCapturing] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [session, setSession] = useState<Session>();
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -63,7 +67,14 @@ export default function ClientHome({
    * Cleanup on unmount: stop capture if still running.
    */
   useEffect(() => {
+    const docRef = doc(collection(db, "user", uid, "session"), sessionId);
+    const unsubscribe = onSnapshot(docRef, (doc) => {
+      const _session = doc.data() as Session;
+      setSession(_session);
+    });
+
     return () => {
+      unsubscribe();
       handleStopCapture();
     };
   }, []);
@@ -111,7 +122,6 @@ export default function ClientHome({
     const canvas = canvasRef.current;
 
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.log("Video not ready yet...");
       return;
     }
 
@@ -183,12 +193,12 @@ export default function ClientHome({
   };
 
   const handleAddMessage = async (prompt: string) => {
+    if (!session) return;
     const response = await postMessage({
       uid,
       sessionId: session.id,
       prompt,
     });
-    console.log("🚀 ~ handleAddMessage ~ response:", response);
   };
 
   return (
@@ -227,7 +237,7 @@ export default function ClientHome({
       <div className="flex-1 flex flex-col">
         <Window
           onAddMessage={handleAddMessage}
-          threads={session.threads.main}
+          threads={session?.threads.main || []}
         />
       </div>
     </div>

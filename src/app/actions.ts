@@ -17,10 +17,7 @@ export async function postImage({ image }: { image: string }) {
 
 1. 各スクリーンショットに写っている情報を網羅的に記述する。
 2. 情報源（スクリーンショットのファイル名）を明記する。
-3. 異なるスクリーンショットに同一の情報が記載されている場合は、重複を避けて簡潔にまとめる。
-4. 情報が矛盾する場合は、それぞれの情報を併記し、矛盾点を指摘する。
-5. 必要に応じて、情報の背景や意味合いを考察する。
-6. 機密事項や個人情報が含まれる場合は、適切に伏せる。
+3. 機密事項や個人情報が含まれる場合は、適切に伏せる。
 
   撮影日時: ${now.toLocaleDateString()}
   `.trim();
@@ -41,34 +38,33 @@ export async function postImage({ image }: { image: string }) {
   };
 }
 
-async function getSession(sessionId: string | undefined, uid: string) {
-  const store = createLocalSessionStore(uid);
-  if (sessionId) {
-    const session = await ai.loadSession(sessionId, { store });
-    return session;
-  } else {
-    const session = ai.createSession({
-      store,
-    });
-    return session;
-  }
-}
+// async function getSession(sessionId: string | undefined, uid: string) {
+//   const store = createLocalSessionStore(uid);
+//   if (sessionId) {
+//     const session = await ai.loadSession(sessionId, { store });
+//     return session;
+//   } else {
+//     const session = ai.createSession({
+//       store,
+//     });
+//     return session;
+//   }
+// }
 
-async function getAIChat(sessionId: string | undefined, uid: string) {
-  const records = await getReords(uid);
-  const session = await getSession(sessionId, uid);
-  if (sessionId) {
-    return session.chat();
-  } else {
-    return session.chat({
-      system: `私の過去の記録です。${JSON.stringify(records)}`,
-    });
-  }
-}
+// async function getAIChat(sessionId: string | undefined, uid: string) {
+//   const records = await getReords(uid);
+//   const session = await getSession(sessionId, uid);
+//   if (sessionId) {
+//     return session.chat();
+//   } else {
+//     return session.chat({
+//       system: `私の過去の記録です。${JSON.stringify(records)}`,
+//     });
+//   }
+// }
 
 export async function createSession(uid: string) {
   const store = createLocalSessionStore(uid);
-  const now = new Date();
 
   const session = ai.createSession({
     store,
@@ -111,7 +107,6 @@ session情報をもとに
 5. 回答は、ユーザーにとって分かりやすく、丁寧な言葉遣いである必要があります。
 6. 回答の中で、日記データからの引用を適切に行うようにしてください。
 7. 質問内容によっては、複数の日記データを参照する必要がある場合があります。
-8. 質問内容によっては、回答が困難な場合があります。その場合は、「この質問にはお答えできません」と回答してください。
 
 ## ユーザーからの質問
 ${prompt}

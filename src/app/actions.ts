@@ -1,72 +1,9 @@
 "use server";
 
 import { ai } from "@/utils/aiConfig";
-import type { MySessionState } from "@/utils/localSessionStore";
 import { createLocalSessionStore } from "@/utils/localSessionStore";
 
-import fs from "fs/promises";
-import path from "path";
-
-export interface ChatResult {
-  reply: string;
-  sessionId: string;
-  uploadedImagePaths: string[];
-}
-
-/**
- * サーバーアクション: チャットを行う
- * "use server" をつけることで、クライアントから呼ばれた際にサーバーで実行される
- */
-export async function chatAction(formData: FormData): Promise<ChatResult> {
-  // 1) フォームから取得
-  const sessionId = (formData.get("sessionId") as string) || "";
-  const message = (formData.get("message") as string) || "";
-  // 複数ファイルを取り出す
-  const images = formData.getAll("images") as File[];
-
-  // 2) 画像をローカル保存
-  const uploadedPaths: string[] = [];
-  for (const file of images) {
-    // 画像バイナリを読み込む
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // ファイル名はユニークにする
-    const dir = path.join(process.cwd(), "uploads");
-    await fs.mkdir(dir, { recursive: true });
-    const uniqueName = `${Date.now()}_${file.name}`;
-    const filePath = path.join(dir, uniqueName);
-
-    // 書き込み
-    await fs.writeFile(filePath, buffer);
-    uploadedPaths.push(filePath);
-  }
-
-  // 3) セッションをロード or 新規作成
-  const store = createLocalSessionStore();
-  let session = await ai.loadSession(sessionId, { store });
-  if (!session) {
-    session = ai.createSession<MySessionState>({ store });
-  }
-
-  // 4) チャットを送信
-  const chat = session.chat();
-  const userPrompt = `
-ユーザー入力:
-${message}
-
-アップロード画像パス:
-${uploadedPaths.map((p) => `- ${p}`).join("\n")}
-  `.trim();
-
-  const response = await chat.send(userPrompt);
-
-  return {
-    reply: response.text,
-    sessionId: session.id,
-    uploadedImagePaths: uploadedPaths,
-  };
-}
+import { getReords } from "@/utils/firestore";
 
 export async function postImage({ image }: { image: string }) {
   const now = new Date();
@@ -104,32 +41,44 @@ export async function postImage({ image }: { image: string }) {
   };
 }
 
+async function getSession(sessionId: string | undefined, uid: string) {
+  const store = createLocalSessionStore(uid);
+  if (sessionId) {
+    const session = await ai.loadSession(sessionId, { store });
+    return session;
+  } else {
+    const session = ai.createSession({
+      store,
+    });
+    return session;
+  }
+}
+
+async function getAIChat(sessionId: string | undefined, uid: string) {
+  const records = await getReords(uid);
+  const session = await getSession(sessionId, uid);
+  if (sessionId) {
+    return session.chat();
+  } else {
+    return session.chat({
+      system: `私の過去の記録です。${JSON.stringify(records)}`,
+    });
+  }
+}
+
 export async function postMessage({
   uid,
   sessionId,
   prompt,
 }: {
   uid: string;
-  sessionId: string;
+  sessionId: string | undefined;
   prompt: string;
 }) {
-  const store = createLocalSessionStore(uid);
-
   const now = new Date();
-
-  let session = await ai.loadSession(sessionId, { store });
-  if (!session) {
-    session = ai.createSession<MySessionState>({
-      store,
-      initialState: {
-        date: now.toISOString(),
-        reply: "",
-      },
-    });
-  }
-
   // 4) チャットを送信
-  const sessionChat = session.chat();
+  const session = await getSession(sessionId, uid);
+  const sessionChat = await getAIChat(sessionId, uid);
 
   const response = await sessionChat.send(
     `あなたは、過去の時系列の日記データに基づいて、ユーザーの質問に答えるAIです。

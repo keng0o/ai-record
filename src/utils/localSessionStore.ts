@@ -14,25 +14,19 @@ export interface MySessionState {
   reply: string;
 }
 
-export function createLocalSessionStore(
-  userId: string
-): SessionStore<MySessionState> {
+export function createLocalSessionStore(userId: string): SessionStore {
   return {
-    async get(
-      sessionId: string
-    ): Promise<SessionData<MySessionState> | undefined> {
+    async get(sessionId: string): Promise<SessionData | undefined> {
       const docRef = doc(collection(db, "user", userId, "session"), sessionId);
       const docSnap = await getDoc(docRef);
       if (!docSnap.exists) {
         return undefined;
       }
-      return docSnap.data() as SessionData<MySessionState>;
+      return docSnap.data() as SessionData;
     },
 
-    async save(
-      sessionId: string,
-      sessionData: SessionData<MySessionState>
-    ): Promise<void> {
+    async save(sessionId: string, sessionData: SessionData): Promise<void> {
+      console.log("🚀 ~ save ~ sessionData:", sessionData);
       const docRef = doc(collection(db, "user", userId, "session"), sessionId);
       setDoc(docRef, sessionData);
     },

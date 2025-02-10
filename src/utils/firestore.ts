@@ -102,3 +102,18 @@ export const addUser = async ({
     photoURL,
   });
 };
+
+export const getReords = async (userId: string) => {
+  const q = query(collection(db, "user", userId, "record"));
+  const docSnap = await getDocs(q);
+  if (docSnap.empty) {
+    return [];
+  }
+  return docSnap.docs.map((doc) => {
+    const { date, reply } = doc.data();
+    return {
+      date: date,
+      reply,
+    };
+  });
+};

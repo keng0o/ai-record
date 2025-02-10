@@ -1,6 +1,6 @@
 import { initializeApp, initializeServerApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getGenerativeModel, getVertexAI } from "firebase/vertexai";
 
@@ -23,7 +23,8 @@ if (typeof window === "undefined") {
 app = initializeApp(firebaseConfig);
 export const storage = getStorage(app);
 export const vertexAI = getVertexAI(app);
-export const db = getFirestore(app);
+export const db = initializeFirestore(app, { ignoreUndefinedProperties: true });
+
 export const auth = getAuth();
 export const googleAuthProvider = new GoogleAuthProvider();
 export const model = getGenerativeModel(vertexAI, {

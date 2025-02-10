@@ -1,16 +1,17 @@
 {
+  "main": "lib/index.js",
+  "scripts": {
+    "start": "next start",
+    "build": "next build",
+    "build:watch": "tsc --watch",
+    "dev": "next dev",
+    "lint": "next lint"
+  },
   "name": "ai-record",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
-  },
   "dependencies": {
     "@genkit-ai/googleai": "^0.9.12",
-    "@genkit-ai/vertexai": "^0.9.12",
     "@google-cloud/vertexai": "^1.9.3",
     "@tailwindcss/postcss": "^4.0.3",
     "@types/pixelmatch": "^5.2.6",
@@ -23,7 +24,8 @@
     "react-dom": "^19.0.0",
     "server-only": "^0.0.1",
     "tailwindcss": "^4.0.3",
-    "uuid": "^11.0.5"
+    "uuid": "^11.0.5",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -35,6 +37,6 @@
     "genkit-cli": "^0.9.12",
     "postcss": "^8.5.1",
     "tsx": "^4.19.2",
-    "typescript": "^5"
+    "typescript": "^5.7.3"
   }
 }

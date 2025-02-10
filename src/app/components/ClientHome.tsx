@@ -2,7 +2,6 @@
 
 import pixelmatch from "pixelmatch";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
 
 import { Chat } from "@/types";
 import ChatSidebar from "./ChatSidebar";
@@ -16,6 +15,27 @@ const CAPTURE_CONFIG = {
   MIN_DIFF_PERCENTAGE: 0.01,
 } as const;
 
+// ヘルパー関数: キャンバスから画像データを取得
+function getCanvasImageData(
+  video: HTMLVideoElement,
+  canvas: HTMLCanvasElement
+): ImageData | null {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return ctx.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+// ヘルパー関数: メディアトラックを停止
+function stopMediaTracks(video: HTMLVideoElement) {
+  if (video.srcObject instanceof MediaStream) {
+    video.srcObject.getTracks().forEach((track) => track.stop());
+    video.srcObject = null;
+  }
+}
+
 export default function ClientHome({
   sessions,
   uid,
@@ -23,10 +43,9 @@ export default function ClientHome({
   sessions: { date: string }[];
   uid: string;
 }) {
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [sessionId, setActiveChatId] = useState<string>();
   const [chats, setChats] = useState<Chat[]>([]);
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string>(uuidv4());
 
   const [capturing, setCapturing] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -86,19 +105,12 @@ export default function ClientHome({
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
     if (video.videoWidth === 0 || video.videoHeight === 0) {
       console.log("Video not ready yet...");
       return;
     }
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const newImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const newImageData = getCanvasImageData(video, canvas);
+    if (!newImageData) return;
 
     if (checkSignificantDiff(previousImageDataRef.current, newImageData)) {
       const image = canvas.toDataURL("image/png");
@@ -113,7 +125,7 @@ export default function ClientHome({
       console.log("No significant difference detected. Skipping.");
     }
     previousImageDataRef.current = newImageData;
-  }, [currentSessionId]);
+  }, [uid]);
 
   /**
    * Start repeated capture using setInterval
@@ -161,8 +173,6 @@ export default function ClientHome({
   };
 
   const handleSessionChat = async () => {
-    const sessionId = uuidv4();
-    setActiveChatId(sessionId);
     const newChat: Chat = {
       id: sessionId,
       messages: [],
@@ -177,11 +187,8 @@ export default function ClientHome({
     console.log("Stopping capture...");
     setCapturing(false);
     setPaused(false);
-    setCurrentSessionId("");
-
-    if (videoRef.current?.srcObject instanceof MediaStream) {
-      videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
-      videoRef.current.srcObject = null;
+    if (videoRef.current) {
+      stopMediaTracks(videoRef.current);
     }
   };
 
@@ -189,16 +196,15 @@ export default function ClientHome({
    * Add a new message to a specific chat
    */
   const handleAddMessage = async (prompt: string) => {
-    if (!activeChatId) return;
     const response = await postMessage({
       uid,
-      sessionId: activeChatId,
+      sessionId: sessionId,
       prompt,
     });
     console.log("🚀 ~ handleAddMessage ~ response:", response);
     setChats((prevChats) =>
       prevChats.map((chat) => {
-        if (chat.id === activeChatId) {
+        if (chat.id === sessionId) {
           // return { ...chat, messages: [...chat.messages, msg] };
         }
         return chat;
@@ -209,7 +215,7 @@ export default function ClientHome({
   /**
    * Identify the active chat object
    */
-  const activeChat = chats.find((c) => c.id === activeChatId);
+  const activeChat = chats.find((c) => c.id === sessionId);
 
   return (
     <div className="flex h-full">
@@ -252,7 +258,7 @@ export default function ClientHome({
 
         <ChatSidebar
           sessions={sessions}
-          activeChatId={activeChatId}
+          sessionId={sessionId}
           setActiveChatId={setActiveChatId}
         />
       </div>

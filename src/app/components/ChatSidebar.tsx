@@ -15,9 +15,9 @@ export default function ChatSidebar({
 }: ChatSidebarProps) {
   return (
     <div>
-      {sessions.map((session) => (
+      {sessions.map((session, index) => (
         <div
-          key={session.id}
+          key={index}
           onClick={() => setActiveChatId(session.id)}
           className={`p-2 mb-2 cursor-pointer rounded ${
             session.id === activeChatId ? "bg-blue-300" : "bg-white"

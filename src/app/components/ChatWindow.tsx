@@ -79,6 +79,9 @@ export default function ChatWindow({ onAddMessage }: ChatWindowProps) {
           type="text"
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSend();
+          }}
           className="border flex-1 px-2 py-1"
           placeholder="質問を入力..."
         />

@@ -194,7 +194,7 @@ export default function ClientHome({
 
   const handleAddMessage = async (prompt: string) => {
     if (!session) return;
-    const response = await postMessage({
+    await postMessage({
       uid,
       sessionId: session.id,
       prompt,

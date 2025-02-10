@@ -6,7 +6,7 @@ import { onAuthStateChanged, signInWithPopup } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-export default function JP() {
+export default function Login() {
   const router = useRouter();
 
   // ログイン状態をチェックし、ログイン済みならリダイレクトする

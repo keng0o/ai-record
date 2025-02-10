@@ -11,16 +11,12 @@ export async function postImage({ image }: { image: string }) {
   // 4) チャットを送信
   const chat = ai.chat();
   const prompt = `[指示]
-スクリーンショットを添付します。
+スクリーンショットをに写っている情報をすべて抽出してください。感想や意見を含めないようにしてください。出力は情報だけにしてください。日本語で出力してください。
 
-これらのスクリーンショットに写っている情報をすべて抽出し、以下の点に注意して、事実に基づいた詳細なレポートを作成してください。
-
-1. 各スクリーンショットに写っている情報を網羅的に記述する。
-2. 情報源（スクリーンショットのファイル名）を明記する。
-3. 機密事項や個人情報が含まれる場合は、適切に伏せる。
-
-  撮影日時: ${now.toLocaleDateString()}
-  `.trim();
+1.情報を網羅的に記述する。
+2.機密事項や個人情報が含まれる場合は、適切に伏せる。
+撮影日時: ${now.toLocaleDateString()}
+`.trim();
 
   const response = await chat.send([
     {
@@ -92,7 +88,7 @@ export async function postMessage({
   const session = await ai.loadSession(sessionId, { store });
   const sessionChat = session.chat();
   const response = await sessionChat.send(
-    `あなたは、過去の時系列の日記データに基づいて、ユーザーの質問に答えるAIです。
+    `あなたは、過去の記録に基づいて、ユーザーの質問に答えるAIです。
 ## 指示
 
 1. ユーザーからの質問を受け取ります。

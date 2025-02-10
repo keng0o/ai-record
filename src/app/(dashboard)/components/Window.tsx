@@ -24,7 +24,7 @@ export default function Window({
   return (
     <div className="flex flex-col h-full p-4">
       {/* Messages Area: Only this area will scroll */}
-      <div className="flex-1 overflow-auto mb-4 border p-2">
+      <div className="flex-1 overflow-auto mb-4 border p-2 border-white">
         {threads
           .filter((thread) => thread.role !== "system")
           .map((thread: Thread, i: number) => (

@@ -7,7 +7,7 @@ import { collection, doc, onSnapshot } from "firebase/firestore";
 import pixelmatch from "pixelmatch";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { postImage, postMessage } from "@/app/actions";
+import { createSession, postImage, postMessage } from "@/app/actions";
 import { addRecord } from "@/lib/firestore";
 
 import Window from "./Window";
@@ -48,16 +48,11 @@ function stopMediaTracks(video: HTMLVideoElement) {
  * 1) Screen capture & difference checking.
  * 2) Session session creation and message handling.
  */
-export default function ClientHome({
-  uid,
-  sessionId,
-}: {
-  uid: string;
-  sessionId: string;
-}) {
+export default function ClientHome({ uid }: { uid: string }) {
   const [capturing, setCapturing] = useState(false);
   const [paused, setPaused] = useState(false);
   const [session, setSession] = useState<Session>();
+  const [sessionId, setSessionId] = useState<string>();
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -67,6 +62,7 @@ export default function ClientHome({
    * Cleanup on unmount: stop capture if still running.
    */
   useEffect(() => {
+    if (!sessionId) return;
     const docRef = doc(collection(db, "user", uid, "session"), sessionId);
     const unsubscribe = onSnapshot(docRef, (doc) => {
       const _session = doc.data() as Session;
@@ -77,7 +73,7 @@ export default function ClientHome({
       unsubscribe();
       handleStopCapture();
     };
-  }, []);
+  }, [sessionId, uid]);
 
   /**
    * Compare two ImageData objects and check if there's a significant difference.
@@ -158,12 +154,16 @@ export default function ClientHome({
   /**
    * Handle the start of a screen capture.
    */
+  const handleStartSession = async () => {
+    const _sessionId = await createSession(uid);
+    setSessionId(_sessionId);
+  };
   const handleStartCapture = async () => {
     if (capturing) return;
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-      });
+      console.log("Starting capture");
+      const stream = await navigator.mediaDevices.getDisplayMedia();
+      console.log("Got stream:", stream);
       previousImageDataRef.current = null;
 
       if (!videoRef.current) {
@@ -171,12 +171,22 @@ export default function ClientHome({
       }
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
+      console.log("Playing video");
 
       setCapturing(true);
       setPaused(false);
-    } catch (err) {
-      console.error("Error starting capture:", err);
-      alert("画面キャプチャの開始に失敗しました");
+    } catch (err: any) {
+      if (err && err.name === "NotReadableError") {
+        console.error("NotReadableError: Could not start video source", err);
+        alert(
+          "ビデオソースが利用できません。他のアプリで使用中の可能性があります"
+        );
+      } else {
+        console.error("Error starting capture:", err);
+        alert("画面キャプチャの開始に失敗しました");
+      }
+      // ストリームが既に存在する場合の後始末を実施
+      handleStopCapture();
     }
   };
 
@@ -231,10 +241,23 @@ export default function ClientHome({
             >
               記録を開始
             </button>
+            <button
+              className="bg-blue-500 text-white px-4 py-2 mb-4 rounded w-full"
+              onClick={handleStartSession}
+            >
+              記録の振り返り
+            </button>
           </>
         )}
       </div>
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col relative">
+        {!sessionId && (
+          <div className="absolute top-0 left-0 right-0 text-center h-full">
+            <div className="flex bg-blue-800 opacity-80 items-center justify-center text-white w-full h-full">
+              記録を開始してください
+            </div>
+          </div>
+        )}
         <Window
           onAddMessage={handleAddMessage}
           threads={session?.threads.main || []}

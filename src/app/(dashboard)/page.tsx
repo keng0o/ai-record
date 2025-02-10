@@ -3,7 +3,6 @@
 import { onAuthStateChanged, signInWithPopup, User } from "firebase/auth";
 import { useEffect, useRef, useState } from "react";
 
-import { createSession } from "@/app/actions";
 import { auth, googleAuthProvider } from "@/lib/firebase";
 import { addUser } from "@/lib/firestore";
 import { motion } from "framer-motion";
@@ -11,7 +10,6 @@ import Home from "./components/Home";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
-  const [sessionId, setSessionId] = useState<string>();
 
   const signInWithGoogle = async () => {
     try {
@@ -483,9 +481,6 @@ export default function DashboardPage() {
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.lineTo(x1, y1);
-      ctx.strokeStyle = `rgba(${Math.random() * 255},${Math.random() * 255},${
-        Math.random() * 255
-      },0.5)`;
       ctx.stroke();
 
       this.drawFractal(ctx, x1, y1, size * 0.7, angle - Math.PI / 4, depth - 1);
@@ -524,9 +519,7 @@ export default function DashboardPage() {
         else ctx.lineTo(x, y);
       }
       ctx.closePath();
-      ctx.strokeStyle = `rgba(${Math.random() * 255},${Math.random() * 255},${
-        Math.random() * 255
-      },0.5)`;
+
       ctx.stroke();
     }
 
@@ -560,12 +553,9 @@ export default function DashboardPage() {
         if (t === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
-      ctx.strokeStyle = `rgba(${Math.random() * 255},${Math.random() * 255},${
-        Math.random() * 255
-      },0.5)`;
+
       ctx.stroke();
     }
-
     update() {
       this.delta += 0.01;
     }
@@ -602,9 +592,7 @@ export default function DashboardPage() {
         if (t === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
-      ctx.strokeStyle = `rgba(${Math.random() * 255},${Math.random() * 255},${
-        Math.random() * 255
-      },0.5)`;
+
       ctx.stroke();
     }
 
@@ -644,9 +632,7 @@ export default function DashboardPage() {
         if (t === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
-      ctx.strokeStyle = `rgba(${Math.random() * 255},${Math.random() * 255},${
-        Math.random() * 255
-      },0.5)`;
+
       ctx.stroke();
     }
 
@@ -654,7 +640,6 @@ export default function DashboardPage() {
       this.angle += 0.01;
     }
   }
-
   class Rhodonea implements GeometricShape {
     private x: number;
     private y: number;
@@ -679,9 +664,7 @@ export default function DashboardPage() {
         if (t === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
-      ctx.strokeStyle = `rgba(${Math.random() * 255},${Math.random() * 255},${
-        Math.random() * 255
-      },0.5)`;
+
       ctx.stroke();
     }
 
@@ -691,7 +674,6 @@ export default function DashboardPage() {
   }
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -805,16 +787,7 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    const f = async () => {
-      if (!user) return;
-      const _sessionId = await createSession(user.uid);
-      setSessionId(_sessionId);
-    };
-    f();
-  }, [user]);
-
-  if (!user || !sessionId) {
+  if (!user) {
     return (
       <motion.div
         initial={{ opacity: 0 }}
@@ -834,11 +807,9 @@ export default function DashboardPage() {
             </button>
           </div>
         ) : (
-          !sessionId && (
-            <div className="absolute mt-32">
-              <p className="text-xl text-black font-medium ">Loading...</p>
-            </div>
-          )
+          <div className="absolute mt-32">
+            <p className="text-xl text-black font-medium ">Loading...</p>
+          </div>
         )}
         <div className="absolute mt-56">
           <p className="text-sm text-black font-medium ">
@@ -851,7 +822,7 @@ export default function DashboardPage() {
 
   return (
     <main className="h-screen">
-      <Home uid={user.uid} sessionId={sessionId} />
+      <Home uid={user.uid} />
     </main>
   );
 }
